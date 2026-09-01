@@ -1,0 +1,64 @@
+{
+  "summary": "First test run for SPEAK 2026: THE OUTPOST. Backend: 23/23 pytest cases pass — full registration + verify + create-password + login + /me + /my-ledger + referral flow + resend cooldown + all admin endpoints (auth-guarded, stats, registrations, settings, export, referrals, add-admin). Frontend: home, event-details, faq, login, /admin login, and admin dashboard (Overview, Registrations w/ search+filter, Referrals, Coin Rules save, Admins) all render and function. One CRITICAL frontend blocker discovered: the configured Google reCAPTCHA site key returns 'ERROR for site owner: Invalid key type' in the widget, so no real user can register through the UI.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/register", "issue": "When Resend fails to send (test mode restricts to verified recipients, e.g., '@example.com' addresses), the endpoint returns 502 and no pending registration is created. This blocks any test/user who isn't the Resend account owner unless they use `delivered+*@resend.dev`. In DEV mode (DEV_EXPOSE_TOKENS=true) the endpoint should probably still succeed and return the devVerificationLink even if email delivery fails, otherwise the documented dev flow is inconsistent with reality.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/register", "issue": "Sets pending.lastSentAt = now, so the very first POST /api/resend-verification within 60s returns 429 (works as spec, but user-facing UX: the register success screen should hide the resend button for the cooldown)."},
+      {"endpoint": "GET /api/admin/registrations", "issue": "Search is case-insensitive on names/emails but ownReferralCode comparison uses .find(s) instead of a lower-cased 'in' — works, but inconsistent style."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Register / ReCAPTCHA v2 widget", "issue": "Google reCAPTCHA widget displays 'ERROR for site owner: Invalid key type'. The site key in frontend/.env (REACT_APP_RECAPTCHA_SITE_KEY=6LewSaMt...) is not a valid v2-checkbox site key (likely a v3 or mismatched key). Real users cannot complete the captcha and therefore cannot register through the UI. Backend API still works via dev-bypass.", "selector": "[data-testid=\"register-recaptcha\"] iframe", "priority": "CRITICAL"},
+      {"component": "AdminDashboard Overview tab", "issue": "Below the 4 stat cards the Overview tab is entirely empty (large empty area). Consider adding recent registrations / recent referrals / quick actions.", "selector": "[data-testid=\"admin-tab-overview\"]", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Registration UI end-to-end", "issue": "Blocked by reCAPTCHA key error above — cannot submit /register from the browser. Verified with API (dev-bypass) that backend flow works.", "affected_selectors": ["[data-testid=\"register-submit\"]"]}
+    ],
+    "design_issues": [
+      {"screen": "Register page", "issues": ["reCAPTCHA widget shows 'Invalid key type' error inside its box — needs a valid v2-checkbox site key"]},
+      {"screen": "Admin Overview", "issues": ["Large empty region under stat cards"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Replace REACT_APP_RECAPTCHA_SITE_KEY (and RECAPTCHA_SECRET_KEY on backend) with a valid reCAPTCHA v2 (checkbox) site/secret key pair — the current key returns 'Invalid key type'. Restart frontend after changing .env.",
+    "In POST /api/register, when DEV_EXPOSE_TOKENS=true and email send fails, still create the pending registration and return devVerificationLink so the documented dev flow works with any recipient domain (current 502 blocks tests/dev unless recipient is delivered@resend.dev).",
+    "(Optional UX) Populate the admin Overview tab with more than 4 stat cards, or hide the empty space."
+  ],
+  "critical_code_review_comments": [
+    "server.py is ~690 lines — still ok but growing; consider splitting into modules (auth, admin, registration, models) if it grows further.",
+    "verify_recaptcha() DEV bypass is fine. All Mongo _id are properly excluded (good).",
+    "Password hashing uses bcrypt.gensalt() (default 12 rounds) with $2b$ prefix — verified good.",
+    "seed_super_admin() is idempotent and also updates the password if changed (good).",
+    "CORS_ORIGINS='*' with allow_credentials=True is a spec-violation (browsers reject) but current app uses Bearer tokens so this doesn't matter; still worth tightening to explicit origins.",
+    "In /api/login and /api/admin/login the cookie is set httponly + secure + samesite=none — good for cross-site preview; also returns access_token in the JSON body for localStorage usage by the frontend.",
+    "Frontend correctly reads REACT_APP_BACKEND_URL from env (via /app/frontend/src/lib/api.js style usage) — no hardcoded URLs seen."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {"backend": "100% (23/23)", "frontend": "~85% (all core routes/tabs work; register UI blocked by invalid reCAPTCHA key)"},
+  "test_credentials": "Super admin: admin@speakcon.com / moc.nockaeps@nimda. Attendee created during tests via API: `delivered+TEST_reg_*@resend.dev` / StrongPass123! (varies per run).",
+  "seed_data_creation": "Tests create attendees via /api/register+/api/create-password using `delivered+TEST_*@resend.dev` recipients and one TEST_admin_* admin. Not auto-cleaned; safe to leave.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend suite lives at /app/backend/tests/backend_test.py and passes 23/23 via `pytest -n 2 --dist loadscope` (configured in /app/backend/pytest.ini). Use `delivered+<label>@resend.dev` as test recipient because Resend is in sandbox mode; using '@example.com' returns HTTP 502 from /api/register. For frontend register UI, the reCAPTCHA v2 site key currently produces 'Invalid key type' — until a valid v2 key is configured, register UI cannot be exercised end-to-end (use recaptchaToken='dev-bypass' via API).",
+  "rca_of_the_issue": {
+    "recaptcha_invalid_key": {
+      "symptom": "Register page shows reCAPTCHA widget with red banner 'ERROR for site owner: Invalid key type'; users cannot complete captcha.",
+      "root_cause": "The REACT_APP_RECAPTCHA_SITE_KEY configured in /app/frontend/.env is not a valid Google reCAPTCHA v2 (checkbox) site key — likely a v3 key or one bound to a different domain. react-google-recaptcha (v2) requires a v2-checkbox key.",
+      "fix": "Provision a v2 checkbox key pair in the Google reCAPTCHA admin, add expected domain (preview.emergentagent.com), update REACT_APP_RECAPTCHA_SITE_KEY (frontend) and RECAPTCHA_SECRET_KEY (backend), and restart frontend."
+    },
+    "register_502_on_send_fail": {
+      "symptom": "POST /api/register returns 502 when Resend rejects the recipient in test mode (e.g., '@example.com').",
+      "root_cause": "server.py aborts and never creates pending_registrations if send_verification_email returns False, even when DEV_EXPOSE_TOKENS=true.",
+      "fix": "In DEV mode, log the failure and still insert pending + return devVerificationToken/Link; keep 502 only when NOT in DEV mode."
+    }
+  }
+}
