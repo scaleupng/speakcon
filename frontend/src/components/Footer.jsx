@@ -9,7 +9,7 @@ export function Footer() {
         <div className="md:col-span-2">
           <SpeakLogo />
           <p className="mt-4 text-sm text-gray-400 max-w-sm leading-relaxed">
-            THE OUTPOST: A Generation Positioned for Impact. Solving Problems Existing Anywhere Through Knowledge.
+            The annual SPEAK Conference — Solving Problems Existing Anywhere Through Knowledge. 2026 theme: THE OUTPOST, A Generation Positioned for Impact.
           </p>
         </div>
         <div>

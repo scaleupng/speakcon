@@ -1,19 +1,21 @@
 import { Link } from "react-router-dom";
 import { Countdown } from "@/components/Countdown";
 import {
-  ArrowRight, MapPin, Coins, Lightbulb, Users, Target, Compass,
-  Sparkles, CalendarDays, ChevronDown,
+  ArrowRight, MapPin, Coins, Lightbulb, Users, Target, HeartHandshake,
+  Sparkles, CalendarDays, ChevronDown, Compass,
 } from "lucide-react";
 import { useState } from "react";
 
-const HERO_IMG = "https://images.unsplash.com/photo-1761925116230-d24410fbe1a0?crop=entropy&cs=srgb&fm=jpg&q=85&w=1600";
+const HERO_VIDEO = "/hero-loop.mp4";
+const HERO_POSTER = "https://images.unsplash.com/photo-1761925116230-d24410fbe1a0?crop=entropy&cs=srgb&fm=jpg&q=85&w=1600";
+const THEME_IMG = "https://images.unsplash.com/photo-1505373877841-8d25f7d46678?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200";
 const VENUE_IMG = "https://images.unsplash.com/photo-1763962274119-1a0a0d418520?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200";
 const COIN_IMG = "https://images.unsplash.com/photo-1642735051388-3387a20e0e8f?crop=entropy&cs=srgb&fm=jpg&q=85&w=1000";
 
 const pillars = [
-  { icon: Lightbulb, title: "Knowledge", text: "Deep sessions that turn insight into deployable solutions for real-world problems." },
-  { icon: Compass, title: "Positioning", text: "Find your outpost — the frontier where your gifts meet the world's needs." },
-  { icon: Target, title: "Impact", text: "A generation equipped to solve problems existing anywhere, through knowledge." },
+  { icon: Lightbulb, title: "Knowledge", text: "A gathering built to turn insight into solutions for problems that exist anywhere." },
+  { icon: HeartHandshake, title: "Community", text: "Thinkers, builders and leaders who return every year to sharpen one another." },
+  { icon: Target, title: "Impact", text: "Equipping a generation to take their position and make a measurable difference." },
 ];
 
 const speakers = [
@@ -24,9 +26,9 @@ const speakers = [
 ];
 
 const faqTeaser = [
+  { q: "What is SPEAK Conference?", a: "SPEAK is an annual conference that brings people together to solve problems existing anywhere through knowledge. Each year carries a distinct theme — 2026's theme is THE OUTPOST." },
   { q: "How much does it cost to register?", a: "Registration for SPEAK 2026 is free. Verified attendees also earn free SPEAK COIN as a welcome reward." },
-  { q: "What is SPEAK COIN?", a: "SPEAK COIN is our internal reward point system. Earn it by registering, verifying, and referring others to the conference." },
-  { q: "Where is the venue?", a: "Royal Event Center, behind Niger Motel, Suleja, Niger State. Full directions are on the Event Details page." },
+  { q: "When and where does it happen?", a: "SPEAK takes place every October 1. The host venue changes each year — for 2026 we gather at the Royal Event Center, Suleja, Niger State." },
 ];
 
 function FaqRow({ q, a }) {
@@ -48,24 +50,43 @@ export default function Home() {
       {/* HERO */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0">
-          <img src={HERO_IMG} alt="SPEAK 2026 stage" className="h-full w-full object-cover opacity-25" />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#07080B]/70 via-[#07080B]/85 to-[#07080B]" />
+          <video
+            className="h-full w-full object-cover opacity-30"
+            autoPlay loop muted playsInline preload="auto" poster={HERO_POSTER}
+            data-testid="hero-video"
+          >
+            <source src={HERO_VIDEO} type="video/mp4" />
+          </video>
+          <div className="absolute inset-0 bg-gradient-to-b from-[#07080B]/75 via-[#07080B]/85 to-[#07080B]" />
         </div>
         <div className="relative max-w-7xl mx-auto px-5 sm:px-8 pt-20 pb-24 sm:pt-28 sm:pb-32">
           <div className="max-w-3xl fade-up">
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-[#E6B800]">
-              <Sparkles className="h-3.5 w-3.5" /> SPEAK Conference 2026
+              <Sparkles className="h-3.5 w-3.5" /> The Annual SPEAK Conference
             </div>
-            <h1 className="mt-6 font-heading font-extrabold text-4xl sm:text-5xl lg:text-6xl leading-[1.05] text-white">
-              THE OUTPOST:<br />
-              <span className="gold-text-gradient">A Generation Positioned for Impact</span>
+            <h1 className="mt-6 font-heading font-extrabold text-5xl sm:text-6xl lg:text-7xl leading-[0.95] text-white">
+              <span className="gold-text-gradient">SPEAK</span> Conference
             </h1>
-            <p className="mt-6 text-base sm:text-lg text-gray-300 max-w-xl leading-relaxed">
-              Solving Problems Existing Anywhere Through Knowledge. Join a movement of thinkers, builders and leaders taking their position at the frontier.
+            <p className="mt-6 text-base sm:text-xl text-gray-200 max-w-xl leading-relaxed font-medium">
+              Solving Problems Existing Anywhere Through Knowledge.
             </p>
+            <p className="mt-3 text-sm sm:text-base text-gray-400 max-w-xl leading-relaxed">
+              Every year, a generation of thinkers, builders and leaders gathers to take their position and make an impact. This is where momentum begins.
+            </p>
+
+            {/* 2026 theme callout */}
+            <div className="mt-7 inline-flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 rounded-2xl border border-amber-500/25 bg-[#0E1117]/70 backdrop-blur px-5 py-4">
+              <span className="badge-year inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-[#E6B800] w-fit">
+                <Compass className="h-3.5 w-3.5" /> 2026 Theme
+              </span>
+              <span className="font-heading font-semibold text-white text-sm sm:text-base">
+                THE OUTPOST: A Generation Positioned for Impact
+              </span>
+            </div>
+
             <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-gray-300">
-              <span className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-[#E6B800]" /> October 1, 2026</span>
-              <span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#E6B800]" /> Royal Event Center, Suleja, Niger State</span>
+              <span className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-[#E6B800]" /> Every October 1 · 2026 Edition</span>
+              <span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#E6B800]" /> 2026 Venue: Royal Event Center, Suleja, Niger State</span>
             </div>
             <div className="mt-9 flex flex-wrap gap-4">
               <Link to="/register" data-testid="hero-register-btn" className="gold-btn rounded-full px-7 py-3.5 text-sm sm:text-base flex items-center gap-2">
@@ -77,20 +98,23 @@ export default function Home() {
             </div>
           </div>
           <div className="mt-16 fade-up">
-            <p className="text-xs uppercase tracking-[0.3em] text-gray-500 mb-4">Countdown to the Outpost</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-gray-500 mb-4">Countdown to SPEAK 2026</p>
             <Countdown />
           </div>
         </div>
       </section>
 
-      {/* MISSION */}
+      {/* WHAT SPEAK STANDS FOR */}
       <section className="radial-gold py-20 sm:py-28">
         <div className="max-w-7xl mx-auto px-5 sm:px-8">
           <div className="max-w-2xl">
-            <span className="text-xs uppercase tracking-[0.3em] text-[#E6B800]">Our Mission</span>
+            <span className="text-xs uppercase tracking-[0.3em] text-[#E6B800]">About SPEAK</span>
             <h2 className="mt-3 font-heading font-bold text-3xl sm:text-4xl text-white leading-tight">
-              A generation equipped to solve problems anywhere.
+              An annual movement for those who refuse to stay silent.
             </h2>
+            <p className="mt-4 text-gray-400 leading-relaxed">
+              SPEAK returns each year to convene a generation around one enduring mission — solving problems existing anywhere through knowledge. Every edition carries a fresh theme, but the heartbeat never changes.
+            </p>
           </div>
           <div className="mt-14 grid md:grid-cols-3 gap-6">
             {pillars.map((p, i) => (
@@ -102,6 +126,34 @@ export default function Home() {
                 <p className="mt-2 text-sm text-gray-400 leading-relaxed">{p.text}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 2026 THEME — THE OUTPOST */}
+      <section className="py-16 sm:py-24">
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-2 gap-12 items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-[#E6B800]">
+              <Compass className="h-3.5 w-3.5" /> This Year's Theme · 2026
+            </div>
+            <h2 className="mt-5 font-heading font-bold text-3xl sm:text-5xl text-white leading-tight">
+              THE <span className="gold-text-gradient">OUTPOST</span>
+            </h2>
+            <p className="mt-2 font-heading text-lg text-gray-300">A Generation Positioned for Impact</p>
+            <p className="mt-5 text-gray-400 leading-relaxed max-w-lg">
+              An outpost is a position taken at the frontier — where readiness meets opportunity. In 2026, SPEAK challenges a generation to find their outpost: the exact place their knowledge, gifts and courage are needed most, and to hold it with purpose.
+            </p>
+            <Link to="/event-details" className="mt-8 inline-flex outline-gold-btn rounded-full px-6 py-3 text-sm items-center gap-2">
+              What to expect in 2026 <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="relative rounded-3xl overflow-hidden border border-amber-500/20">
+            <img src={THEME_IMG} alt="THE OUTPOST 2026" className="w-full h-72 sm:h-96 object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#07080B] via-transparent to-transparent" />
+            <div className="absolute bottom-5 left-5 badge-gold inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold tracking-wider uppercase bg-amber-500/15 text-[#E6B800] border border-amber-500/40">
+              SPEAK 2026 Edition
+            </div>
           </div>
         </div>
       </section>
@@ -121,7 +173,7 @@ export default function Home() {
               Earn <span className="text-[#E6B800]">SPEAK COIN</span> from the moment you join.
             </h2>
             <p className="mt-4 text-gray-400 leading-relaxed">
-              Register and verify your email to unlock your welcome reward of free SPEAK COIN. Invite friends with your personal referral code and earn even more as they join the Outpost.
+              Register and verify your email to unlock your welcome reward of free SPEAK COIN. Invite friends with your personal referral code and earn even more as they join SPEAK 2026.
             </p>
             <ul className="mt-6 space-y-3 text-sm text-gray-300">
               <li className="flex gap-3"><Coins className="h-5 w-5 text-[#E6B800] shrink-0" /> Instant welcome reward on verification</li>
@@ -143,12 +195,13 @@ export default function Home() {
             <div className="absolute inset-0 bg-gradient-to-r from-[#07080B] via-[#07080B]/70 to-transparent" />
             <div className="absolute inset-0 flex items-center">
               <div className="p-8 sm:p-14 max-w-lg">
-                <span className="text-xs uppercase tracking-[0.3em] text-[#E6B800]">The Venue</span>
+                <span className="text-xs uppercase tracking-[0.3em] text-[#E6B800]">2026 Venue</span>
                 <h2 className="mt-3 font-heading font-bold text-3xl sm:text-4xl text-white">Royal Event Center</h2>
                 <p className="mt-4 text-gray-300 flex items-start gap-2">
                   <MapPin className="h-5 w-5 text-[#E6B800] shrink-0 mt-0.5" />
                   Behind Niger Motel, Suleja, Niger State
                 </p>
+                <p className="mt-3 text-xs text-gray-500">Our host venue changes each year — this is where SPEAK 2026 gathers.</p>
                 <Link to="/event-details" className="mt-7 inline-flex outline-gold-btn rounded-full px-6 py-3 text-sm items-center gap-2">
                   Get Directions <ArrowRight className="h-4 w-4" />
                 </Link>
@@ -163,7 +216,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-5 sm:px-8">
           <div className="flex items-end justify-between flex-wrap gap-4">
             <div>
-              <span className="text-xs uppercase tracking-[0.3em] text-[#E6B800]">The Voices</span>
+              <span className="text-xs uppercase tracking-[0.3em] text-[#E6B800]">The Voices · 2026</span>
               <h2 className="mt-3 font-heading font-bold text-3xl sm:text-4xl text-white">Speakers</h2>
             </div>
             <span className="text-sm text-gray-500">Full lineup announced soon</span>
@@ -205,7 +258,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-5 sm:px-8">
           <div className="glass rounded-3xl px-8 sm:px-14 py-14 text-center radial-gold">
             <h2 className="font-heading font-extrabold text-3xl sm:text-5xl text-white leading-tight">
-              Take your position at <span className="gold-text-gradient">The Outpost</span>
+              Join <span className="gold-text-gradient">SPEAK 2026</span>
             </h2>
             <p className="mt-4 text-gray-400 max-w-xl mx-auto">
               Registration is free and takes less than a minute. Verify your email to claim your SPEAK COIN.

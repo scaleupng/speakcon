@@ -8,7 +8,7 @@ export function SpeakLogo({ className = "" }) {
         <div className="font-heading font-extrabold tracking-tight text-white text-lg">
           SPEAK <span className="text-[#E6B800]">2026</span>
         </div>
-        <div className="text-[9px] tracking-[0.35em] text-gray-400 uppercase mt-0.5">The Outpost</div>
+        <div className="text-[9px] tracking-[0.35em] text-gray-400 uppercase mt-0.5">Conference</div>
       </div>
     </div>
   );
