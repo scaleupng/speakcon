@@ -9,8 +9,14 @@ export function Footer() {
         <div className="md:col-span-2">
           <SpeakLogo />
           <p className="mt-4 text-sm text-gray-400 max-w-sm leading-relaxed">
-            The annual SPEAK Conference — Solving Problems Existing Anywhere Through Knowledge. 2026 theme: THE OUTPOST, A Generation Positioned for Impact.
+            SPEAK is an annual gathering for a generation solving problems existing anywhere through knowledge. Every edition brings a new theme, a new place and the same enduring mission.
           </p>
+          <div className="mt-7 flex flex-wrap items-center gap-4">
+            <div className="rounded-xl px-3 py-2" data-testid="organizer-logo">
+              <img src="/church_logo.png" alt="The Designers Desire Church, Family Embassy" className="h-12 w-auto max-w-[220px] object-contain" />
+            </div>
+            <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Organised by<br /><span className="text-gray-300">The Designers Desire Church · Family Embassy</span></p>
+          </div>
         </div>
         <div>
           <h4 className="font-heading font-semibold text-white text-sm mb-4">Explore</h4>
@@ -22,7 +28,7 @@ export function Footer() {
           </ul>
         </div>
         <div>
-          <h4 className="font-heading font-semibold text-white text-sm mb-4">Event</h4>
+          <h4 className="font-heading font-semibold text-white text-sm mb-4">This Year's Edition</h4>
           <ul className="space-y-3 text-sm text-gray-400">
             <li className="flex gap-2"><Calendar className="h-4 w-4 text-[#E6B800] shrink-0 mt-0.5" /> October 1, 2026</li>
             <li className="flex gap-2"><MapPin className="h-4 w-4 text-[#E6B800] shrink-0 mt-0.5" /> Royal Event Center, behind Niger Motel, Suleja, Niger State</li>
