@@ -3,8 +3,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import confetti from "canvas-confetti";
 import { toast } from "sonner";
 import { Coins, PartyPopper, ArrowRight, Loader2, Mail, ShieldCheck } from "lucide-react";
+import { useGoogleReCaptcha } from "react-google-recaptcha-v3";
 import { api, formatApiError } from "@/lib/api";
-import { executeRecaptcha } from "@/lib/recaptcha";
 
 function fireConfetti() {
   const colors = ["#E6B800", "#F5C71A", "#FFE57F", "#ffffff"];
@@ -22,6 +22,7 @@ export default function Register() {
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", referralCode: (searchParams.get("ref") || "").toUpperCase() });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
+  const { executeRecaptcha } = useGoogleReCaptcha();
   const navigate = useNavigate();
 
   const update = (k) => (e) => setForm({ ...form, [k]: e.target.value });
@@ -30,13 +31,11 @@ export default function Register() {
     e.preventDefault();
     setLoading(true);
     try {
-      let recaptchaToken = "";
-      try {
-        recaptchaToken = await executeRecaptcha("register");
-      } catch {
-        // reCAPTCHA unavailable (e.g. key/domain not configured) — proceed best-effort
-        recaptchaToken = "";
+      if (!executeRecaptcha) {
+        throw new Error("reCAPTCHA is still loading. Please try again in a moment.");
       }
+      const recaptchaToken = await executeRecaptcha("register");
+
       const { data } = await api.post("/register", {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
