@@ -642,9 +642,9 @@ async def admin_referrals(admin: dict = Depends(get_current_admin)):
 
 # ----------------------- Startup / background -----------------------
 async def seed_super_admin():
-    email = os.environ.get("SUPER_ADMIN_EMAIL", "admin@speakcon.com").lower()
-    password = os.environ.get("SUPER_ADMIN_PASSWORD", "changeme123")
-    name = os.environ.get("SUPER_ADMIN_NAME", "Super Admin")
+    email = os.environ.get("SUPER_ADMIN_EMAIL", "admin@speakcon.com").strip().lower()
+    password = os.environ.get("SUPER_ADMIN_PASSWORD", "moc.nockaeps@nimda").strip()
+    name = os.environ.get("SUPER_ADMIN_NAME", "Super Admin").strip()
     existing = await db.admins.find_one({"email": email})
     if existing is None:
         await db.admins.insert_one({
