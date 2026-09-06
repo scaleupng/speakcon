@@ -26,7 +26,7 @@ Multi-page conference marketing site for SPEAK 2026 ("THE OUTPOST: A Generation 
 - Verified: backend suite 23/23 pass; full API chain register→verify→create-password(100 COIN)→me→login confirmed.
 
 ## Known Config Notes / Backlog
-- P0 (user action): reCAPTCHA v3 site key `6LewSaMt...` is not authorized for the preview domain, so client `grecaptcha.execute` fails. Currently reCAPTCHA runs in BEST-EFFORT mode (`RECAPTCHA_ENFORCE=false`) so registration still works. To enforce: add `speak-coin-hub-1.preview.emergentagent.com` (and final domain) to the key's allowed domains in Google reCAPTCHA admin, then set `RECAPTCHA_ENFORCE=true`.
+- P0 (user action): reCAPTCHA v3 site key `6LewSaMt...` is not authorized for the preview domain, so client `grecaptcha.execute` fails. Currently reCAPTCHA runs in BEST-EFFORT mode (`RECAPTCHA_ENFORCE=false`) so registration still works. To enforce: add the deployed site domain to the key's allowed domains in Google reCAPTCHA admin, then set `RECAPTCHA_ENFORCE=true`.
 - Resend is in test/sandbox mode with onboarding@resend.dev — only delivers to the Resend account owner's verified address; use `delivered+label@resend.dev` for test deliveries. Set a verified domain sender for production.
 - P2: manual coin editing deferred; speaker CMS deferred; referral invite sharing beyond code/link deferred.
 

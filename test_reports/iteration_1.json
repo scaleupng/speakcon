@@ -53,7 +53,7 @@
     "recaptcha_invalid_key": {
       "symptom": "Register page shows reCAPTCHA widget with red banner 'ERROR for site owner: Invalid key type'; users cannot complete captcha.",
       "root_cause": "The REACT_APP_RECAPTCHA_SITE_KEY configured in /app/frontend/.env is not a valid Google reCAPTCHA v2 (checkbox) site key — likely a v3 key or one bound to a different domain. react-google-recaptcha (v2) requires a v2-checkbox key.",
-      "fix": "Provision a v2 checkbox key pair in the Google reCAPTCHA admin, add expected domain (preview.emergentagent.com), update REACT_APP_RECAPTCHA_SITE_KEY (frontend) and RECAPTCHA_SECRET_KEY (backend), and restart frontend."
+      "fix": "Provision a v2 checkbox key pair in the Google reCAPTCHA admin, add the deployed site domain, update REACT_APP_RECAPTCHA_SITE_KEY (frontend) and RECAPTCHA_SECRET_KEY (backend), and restart frontend."
     },
     "register_502_on_send_fail": {
       "symptom": "POST /api/register returns 502 when Resend rejects the recipient in test mode (e.g., '@example.com').",
