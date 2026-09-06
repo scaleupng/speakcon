@@ -10,7 +10,6 @@ const HERO_VIDEO = "/hero-loop.mp4";
 const HERO_POSTER = "https://images.unsplash.com/photo-1761925116230-d24410fbe1a0?crop=entropy&cs=srgb&fm=jpg&q=85&w=1600";
 const THEME_IMG = "https://images.unsplash.com/photo-1505373877841-8d25f7d46678?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200";
 const VENUE_IMG = "https://images.unsplash.com/photo-1763962274119-1a0a0d418520?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200";
-const COIN_IMG = "https://images.unsplash.com/photo-1642735051388-3387a20e0e8f?crop=entropy&cs=srgb&fm=jpg&q=85&w=1000";
 
 const pillars = [
   { icon: Lightbulb, title: "Knowledge", text: "A gathering built to turn insight into solutions for problems that exist anywhere." },
@@ -162,8 +161,9 @@ export default function Home() {
       <section className="py-16 sm:py-24">
         <div className="max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-2 gap-12 items-center">
           <div className="relative rounded-3xl overflow-hidden border border-amber-500/20 order-2 lg:order-1">
-            <img src={COIN_IMG} alt="SPEAK COIN" className="w-full h-72 sm:h-96 object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#07080B] via-transparent to-transparent" />
+            <div className="flex h-72 items-center justify-center bg-[#0E1117] p-8 sm:h-96 sm:p-12">
+              <img src="/speakcoin_logo.png" alt="SPEAK COIN" className="h-full w-full object-contain drop-shadow-[0_0_28px_rgba(230,184,0,0.28)]" />
+            </div>
           </div>
           <div className="order-1 lg:order-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-[#E6B800]">
