@@ -138,7 +138,7 @@ async def get_settings() -> dict:
     return s
 
 
-async def verify_recaptcha(token: str) -> bool:
+async def verify_recaptcha(token: str, expected_action: str = "register") -> bool:
     if not token:
         return False
     if DEV_EXPOSE_TOKENS and token == "dev-bypass":
@@ -153,9 +153,9 @@ async def verify_recaptcha(token: str) -> bool:
             logger.info(f"reCAPTCHA verify result: {data}")
             if not data.get("success"):
                 return False
-            # v3 returns a score; accept a reasonable threshold. v2 has no score.
-            score = data.get("score")
-            if score is not None and score < 0.5:
+            if data.get("score", 0.0) < 0.5:
+                return False
+            if data.get("action") != expected_action:
                 return False
             return True
     except Exception as e:
