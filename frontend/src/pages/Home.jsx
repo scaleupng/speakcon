@@ -2,11 +2,12 @@ import { Link } from "react-router-dom";
 import { Countdown } from "@/components/Countdown";
 import {
   ArrowRight, MapPin, Coins, Lightbulb, Users, Target, HeartHandshake,
-  Sparkles, CalendarDays, ChevronDown, Compass,
+  CalendarDays, ChevronDown, Play, Quote, Mic2,
+  ArrowUpRight, Linkedin,
 } from "lucide-react";
 import { useState } from "react";
 
-const HERO_VIDEO = "/hero-loop.mp4";
+const HERO_VIDEO = "/media/hero-loop.mp4";
 const HERO_POSTER = "https://images.unsplash.com/photo-1761925116230-d24410fbe1a0?crop=entropy&cs=srgb&fm=jpg&q=85&w=1600";
 const THEME_IMG = "https://images.unsplash.com/photo-1505373877841-8d25f7d46678?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200";
 const VENUE_IMG = "https://images.unsplash.com/photo-1763962274119-1a0a0d418520?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200";
@@ -22,6 +23,34 @@ const speakers = [
   { name: "Speaker To Be Announced", role: "Innovation & Technology" },
   { name: "Speaker To Be Announced", role: "Purpose & Impact" },
   { name: "Speaker To Be Announced", role: "Entrepreneurship" },
+];
+
+const archiveYears = [
+  {
+    year: "2025",
+    theme: "The Bridge",
+    descriptor: "Building what connects us",
+    image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?crop=entropy&cs=srgb&fm=jpg&q=85&w=1400",
+    speaker: "Dr. Nkem Okoro",
+    role: "Systems thinker · SPEAK 2025",
+    quote: "The future belongs to the people willing to build the bridge before they know who will cross it.",
+  },
+  {
+    year: "2024",
+    theme: "The Spark",
+    descriptor: "Ideas that refuse to stay small",
+    image: "https://images.unsplash.com/photo-1505373877841-8d25f7d46678?crop=entropy&cs=srgb&fm=jpg&q=85&w=1400",
+    speaker: "Tomi Adeyemi",
+    role: "Founder · SPEAK 2024",
+    quote: "An idea becomes impact the moment it leaves the room and starts serving someone else.",
+  },
+];
+
+const team = [
+  { name: "Ada Nwosu", role: "Creative Director", mark: "AN", tone: "team-amber" },
+  { name: "Micheal Eze", role: "Experience Lead", mark: "ME", tone: "team-blue" },
+  { name: "Zainab Bello", role: "Community & Care", mark: "ZB", tone: "team-coral" },
+  { name: "Daniel Udo", role: "Operations Lead", mark: "DU", tone: "team-moss" },
 ];
 
 const faqTeaser = [
@@ -60,11 +89,11 @@ export default function Home() {
         </div>
         <div className="relative max-w-7xl mx-auto px-5 sm:px-8 pt-20 pb-24 sm:pt-28 sm:pb-32">
           <div className="max-w-3xl fade-up">
-            <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-[#E6B800]">
-              <Sparkles className="h-3.5 w-3.5" /> The Annual SPEAK Conference
+            <div className="flex items-center gap-3 text-sm font-medium tracking-wide text-[#74D5D0]">
+              <span className="h-px w-10 bg-[#0C8588]" /> The Annual SPEAK Conference
             </div>
             <h1 className="mt-6 font-heading font-extrabold text-5xl sm:text-6xl lg:text-7xl leading-[0.95] text-white">
-              <span className="gold-text-gradient">SPEAK</span> Conference
+              <span className="text-brand-teal">SPEAK</span> Conference
             </h1>
             <p className="mt-6 text-base sm:text-xl text-gray-200 max-w-xl leading-relaxed font-medium">
               Solving Problems Existing Anywhere Through Knowledge.
@@ -74,11 +103,9 @@ export default function Home() {
             </p>
 
             {/* 2026 theme callout */}
-            <div className="mt-7 inline-flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 rounded-2xl border border-amber-500/25 bg-[#0E1117]/70 backdrop-blur px-5 py-4">
-              <span className="badge-year inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-[#E6B800] w-fit">
-                <Compass className="h-3.5 w-3.5" /> 2026 Theme
-              </span>
-              <span className="font-heading font-semibold text-white text-sm sm:text-base">
+            <div className="mt-7 border-l-2 border-[#0C8588] pl-4">
+              <span className="text-xs uppercase tracking-[0.2em] text-[#74D5D0]">2026 theme</span>
+              <span className="mt-1 block font-heading font-semibold text-white text-sm sm:text-base">
                 THE OUTPOST: A Generation Positioned for Impact
               </span>
             </div>
@@ -107,7 +134,6 @@ export default function Home() {
       <section className="radial-gold py-20 sm:py-28">
         <div className="max-w-7xl mx-auto px-5 sm:px-8">
           <div className="max-w-2xl">
-            <span className="text-xs uppercase tracking-[0.3em] text-[#E6B800]">About SPEAK</span>
             <h2 className="mt-3 font-heading font-bold text-3xl sm:text-4xl text-white leading-tight">
               An annual movement for those who refuse to stay silent.
             </h2>
@@ -133,9 +159,6 @@ export default function Home() {
       <section className="py-16 sm:py-24">
         <div className="max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-2 gap-12 items-center">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-[#E6B800]">
-              <Compass className="h-3.5 w-3.5" /> This Year's Theme · 2026
-            </div>
             <h2 className="mt-5 font-heading font-bold text-3xl sm:text-5xl text-white leading-tight">
               THE <span className="gold-text-gradient">OUTPOST</span>
             </h2>
@@ -162,13 +185,10 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-2 gap-12 items-center">
           <div className="relative rounded-3xl overflow-hidden border border-amber-500/20 order-2 lg:order-1">
             <div className="flex h-72 items-center justify-center bg-[#0E1117] p-8 sm:h-96 sm:p-12">
-              <img src="/speakcoin_logo.png" alt="SPEAK COIN" className="h-full w-full object-contain drop-shadow-[0_0_28px_rgba(230,184,0,0.28)]" />
+              <img src="/brand/speakcoin_logo.png" alt="SPEAK COIN" className="h-full w-full object-contain drop-shadow-[0_0_28px_rgba(230,184,0,0.28)]" />
             </div>
           </div>
           <div className="order-1 lg:order-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-[#E6B800]">
-              <Coins className="h-3.5 w-3.5" /> Rewards
-            </div>
             <h2 className="mt-5 font-heading font-bold text-3xl sm:text-4xl text-white leading-tight">
               Earn <span className="text-[#E6B800]">SPEAK COIN</span> from the moment you join.
             </h2>
@@ -195,7 +215,6 @@ export default function Home() {
             <div className="absolute inset-0 bg-gradient-to-r from-[#07080B] via-[#07080B]/70 to-transparent" />
             <div className="absolute inset-0 flex items-center">
               <div className="p-8 sm:p-14 max-w-lg">
-                <span className="text-xs uppercase tracking-[0.3em] text-[#E6B800]">2026 Venue</span>
                 <h2 className="mt-3 font-heading font-bold text-3xl sm:text-4xl text-white">Royal Event Center</h2>
                 <p className="mt-4 text-gray-300 flex items-start gap-2">
                   <MapPin className="h-5 w-5 text-[#E6B800] shrink-0 mt-0.5" />
@@ -216,7 +235,6 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-5 sm:px-8">
           <div className="flex items-end justify-between flex-wrap gap-4">
             <div>
-              <span className="text-xs uppercase tracking-[0.3em] text-[#E6B800]">The Voices · 2026</span>
               <h2 className="mt-3 font-heading font-bold text-3xl sm:text-4xl text-white">Speakers</h2>
             </div>
             <span className="text-sm text-gray-500">Full lineup announced soon</span>
@@ -232,6 +250,95 @@ export default function Home() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ARCHIVE */}
+      <section id="archive" className="archive-section py-20 sm:py-28">
+        <div className="max-w-7xl mx-auto px-5 sm:px-8">
+          <div className="max-w-2xl">
+            <Link to="/archive" className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-[#E6B800] hover:text-[#F5C71A] transition-colors">The SPEAK archive <ArrowUpRight className="h-4 w-4" /></Link>
+            <h2 className="mt-3 font-heading font-bold text-3xl sm:text-5xl text-white leading-tight">
+              Echoes worth <span className="gold-text-gradient">carrying forward.</span>
+            </h2>
+            <p className="mt-4 text-gray-400 leading-relaxed">A living record of the voices, ideas and moments that stayed with us after the room emptied.</p>
+          </div>
+
+          <div className="mt-12 grid lg:grid-cols-[0.8fr_1.5fr] gap-8 items-start">
+            <div className="archive-year-list" aria-label="Archive years">
+              {archiveYears.map((item, index) => (
+                <div key={item.year} className={`archive-year ${index === 0 ? "archive-year-active" : ""}`}>
+                  <span className="font-mono text-xs text-[#E6B800]">0{index + 1}</span>
+                  <div>
+                    <p className="font-heading text-3xl font-bold text-white">{item.year}</p>
+                    <p className="mt-1 text-sm text-gray-500">{item.theme} · {item.descriptor}</p>
+                  </div>
+                  <ArrowUpRight className="h-4 w-4 text-gray-600 ml-auto" />
+                </div>
+              ))}
+              <div className="archive-note mt-6">
+                <Mic2 className="h-5 w-5 text-[#E6B800] shrink-0" />
+                <p className="text-xs leading-relaxed text-gray-400">More stories are being gathered from the people who made each edition matter.</p>
+              </div>
+              <Link to="/archive" className="mt-5 inline-flex items-center gap-2 text-sm text-[#E6B800] hover:text-[#F5C71A] transition-colors">Open the full archive <ArrowRight className="h-4 w-4" /></Link>
+            </div>
+
+            <div className="archive-feature" data-testid="speaker-archive-feature">
+              <div className="archive-image-wrap">
+                <img src={archiveYears[0].image} alt="SPEAK 2025 audience gathering" className="archive-image" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#07080B] via-[#07080B]/20 to-transparent" />
+                <div className="archive-play" aria-label="Play SPEAK 2025 highlight reel"><Play className="h-5 w-5 fill-current" /></div>
+                <span className="absolute top-5 left-5 rounded-full border border-white/20 bg-black/30 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-white backdrop-blur">Highlight reel · 02:14</span>
+                <span className="absolute bottom-5 left-5 font-mono text-xs text-[#E6B800]">SPEAK / 25</span>
+              </div>
+              <div className="archive-quote-panel">
+                <Quote className="h-8 w-8 text-[#E6B800]" />
+                <blockquote className="mt-4 font-heading text-2xl sm:text-3xl leading-tight text-white">“{archiveYears[0].quote}”</blockquote>
+                <div className="mt-6 flex items-center justify-between gap-4 border-t border-white/10 pt-4">
+                  <div>
+                    <p className="text-sm font-semibold text-white">{archiveYears[0].speaker}</p>
+                    <p className="mt-1 text-xs text-gray-500">{archiveYears[0].role}</p>
+                  </div>
+                  <span className="font-mono text-xs text-[#E6B800]">01 / 02</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 grid md:grid-cols-3 gap-4">
+            <div className="archive-stat"><span className="font-mono text-2xl text-[#E6B800]">02</span><span>editions captured</span></div>
+            <div className="archive-stat"><span className="font-mono text-2xl text-[#E6B800]">18</span><span>voices on record</span></div>
+            <div className="archive-stat"><span className="font-mono text-2xl text-[#E6B800]">∞</span><span>ideas still in motion</span></div>
+          </div>
+        </div>
+      </section>
+
+      {/* TEAM */}
+      <section id="team" className="py-20 sm:py-28">
+        <div className="max-w-7xl mx-auto px-5 sm:px-8">
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+            <div className="max-w-xl">
+              <Link to="/team" className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-[#E6B800] hover:text-[#F5C71A] transition-colors">Behind the signal <ArrowUpRight className="h-4 w-4" /></Link>
+              <h2 className="mt-3 font-heading font-bold text-3xl sm:text-5xl text-white leading-tight">Meet the people making room for <span className="gold-text-gradient">possibility.</span></h2>
+            </div>
+            <p className="max-w-sm text-sm text-gray-500 leading-relaxed">A small, stubbornly hopeful team turning one day of gathering into a year of momentum.</p>
+          </div>
+          <div className="team-grid mt-12">
+            {team.map((person, index) => (
+              <article key={person.name} className={`team-card ${person.tone}`}>
+                <div className="team-card-top">
+                  <span className="font-mono text-xs text-white/45">0{index + 1}</span>
+                  <Linkedin className="h-4 w-4 text-white/45" />
+                </div>
+                <div className="team-mark">{person.mark}</div>
+                <div className="mt-auto">
+                  <h3 className="font-heading text-xl font-semibold text-white">{person.name}</h3>
+                  <p className="mt-1 text-xs uppercase tracking-[0.18em] text-white/60">{person.role}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+          <div className="mt-7"><Link to="/team" className="inline-flex items-center gap-2 text-sm text-[#E6B800] hover:text-[#F5C71A] transition-colors">Meet the full team <ArrowRight className="h-4 w-4" /></Link></div>
         </div>
       </section>
 

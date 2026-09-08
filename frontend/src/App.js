@@ -12,6 +12,8 @@ import Verify from "@/pages/Verify";
 import Dashboard from "@/pages/Dashboard";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
+import Archive from "@/pages/Archive";
+import Team from "@/pages/Team";
 
 function ProtectedUser({ children }) {
   const { user, loading } = useAuth();
@@ -36,6 +38,8 @@ function App() {
             <Routes>
               <Route element={<PublicLayout />}>
                 <Route path="/" element={<Home />} />
+                <Route path="/archive" element={<Archive />} />
+                <Route path="/team" element={<Team />} />
                 <Route path="/event-details" element={<EventDetails />} />
                 <Route path="/faq" element={<FAQ />} />
                 <Route path="/register" element={<Register />} />

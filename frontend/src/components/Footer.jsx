@@ -4,7 +4,7 @@ import { SpeakLogo } from "@/components/SpeakLogo";
 
 export function Footer() {
   return (
-    <footer className="relative z-10 border-t border-amber-500/15 bg-[#07080B] mt-24" data-testid="main-footer">
+    <footer className="relative z-10 border-t border-white/10 bg-[#071426] mt-24" data-testid="main-footer">
       <div className="max-w-7xl mx-auto px-5 sm:px-8 py-14 grid md:grid-cols-4 gap-10">
         <div className="md:col-span-2">
           <SpeakLogo />
@@ -13,7 +13,7 @@ export function Footer() {
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-4">
             <div className="rounded-xl px-3 py-2" data-testid="organizer-logo">
-              <img src="/church_logo.png" alt="The Designers Desire Church, Family Embassy" className="h-12 w-auto max-w-[220px] object-contain" />
+              <img src="/brand/church_logo.png" alt="The Designers Desire Church, Family Embassy" className="h-12 w-auto max-w-[220px] object-contain" />
             </div>
             <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Organised by<br /><span className="text-gray-300">The Designers Desire Church · Family Embassy</span></p>
           </div>
@@ -22,6 +22,8 @@ export function Footer() {
           <h4 className="font-heading font-semibold text-white text-sm mb-4">Explore</h4>
           <ul className="space-y-2 text-sm text-gray-400">
             <li><Link to="/" className="hover:text-[#E6B800] transition-colors">Home</Link></li>
+            <li><Link to="/archive" className="hover:text-[#E6B800] transition-colors">Past Voices</Link></li>
+            <li><Link to="/team" className="hover:text-[#E6B800] transition-colors">Meet the Team</Link></li>
             <li><Link to="/event-details" className="hover:text-[#E6B800] transition-colors">Event Details</Link></li>
             <li><Link to="/faq" className="hover:text-[#E6B800] transition-colors">FAQ</Link></li>
             <li><Link to="/register" className="hover:text-[#E6B800] transition-colors">Register</Link></li>

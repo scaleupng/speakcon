@@ -4,7 +4,7 @@ import { Footer } from "@/components/Footer";
 
 export function PublicLayout() {
   return (
-    <div className="grain min-h-screen bg-[#07080B]">
+    <div className="grain min-h-screen bg-[#071426]">
       <Navbar />
       <main className="relative z-10 pt-16">
         <Outlet />
