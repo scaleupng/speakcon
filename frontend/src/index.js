@@ -12,14 +12,28 @@ const queryClient = new QueryClient({
   },
 });
 
+const recaptchaSiteKey = process.env.REACT_APP_RECAPTCHA_SITE_KEY;
+
+function AppProviders() {
+  const content = (
+    <>
+      <App />
+      <Toaster position="top-right" theme="dark" richColors />
+    </>
+  );
+
+  return recaptchaSiteKey ? (
+    <GoogleReCaptchaProvider reCaptchaKey={recaptchaSiteKey}>
+      {content}
+    </GoogleReCaptchaProvider>
+  ) : content;
+}
+
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <GoogleReCaptchaProvider reCaptchaKey={process.env.REACT_APP_RECAPTCHA_SITE_KEY || ""}>
-        <App />
-        <Toaster position="top-right" theme="dark" richColors />
-      </GoogleReCaptchaProvider>
+      <AppProviders />
     </QueryClientProvider>
   </React.StrictMode>,
 );

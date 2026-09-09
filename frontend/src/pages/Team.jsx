@@ -2,8 +2,8 @@ import { Link } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Linkedin } from "lucide-react";
 
 const team = [
-  { name: "Ada Nwosu", role: "Creative Director", mark: "AN", tone: "team-amber", bio: "Shapes the visual language and the questions that open each edition." },
-  { name: "Micheal Eze", role: "Experience Lead", mark: "ME", tone: "team-blue", bio: "Turns a room, a schedule and a crowd into one connected experience." },
+  { name: "Prophet Paul Bamikole", role: "Team member", image: "/team/Prophet-Paul-Bamikole.jpg", mark: "PB", tone: "team-amber", bio: "Helping shape the people, purpose and presence behind SPEAK." },
+  { name: "YTD", role: "Team member", image: "/team/YTD.jpeg", mark: "YTD", tone: "team-blue", bio: "Part of the team making room for meaningful conversations." },
   { name: "Zainab Bello", role: "Community & Care", mark: "ZB", tone: "team-coral", bio: "Makes sure every voice feels invited, held and able to contribute." },
   { name: "Daniel Udo", role: "Operations Lead", mark: "DU", tone: "team-moss", bio: "Keeps the moving parts moving, from first idea to final light." },
 ];
@@ -26,7 +26,7 @@ export default function Team() {
           {team.map((person, index) => (
             <article key={person.name} className={`team-page-card ${person.tone}`} data-testid={`team-member-${index}`}>
               <div className="team-card-top"><span className="font-mono text-xs text-white/45">0{index + 1}</span><Linkedin className="h-4 w-4 text-white/45" /></div>
-              <div className="team-mark">{person.mark}</div>
+              {person.image ? <img src={person.image} alt={person.name} className="team-page-photo" /> : <div className="team-mark">{person.mark}</div>}
               <div className="relative z-10 mt-auto"><h2 className="font-heading text-2xl font-semibold text-white">{person.name}</h2><p className="mt-1 text-xs uppercase tracking-[0.18em] text-white/60">{person.role}</p><p className="mt-5 max-w-xs text-sm leading-relaxed text-white/70">{person.bio}</p></div>
             </article>
           ))}
