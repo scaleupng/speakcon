@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Countdown } from "@/components/Countdown";
 import {
   ArrowRight, MapPin, Coins, Lightbulb, Users, Target, HeartHandshake,
-  CalendarDays, ChevronDown, Play, Quote, Mic2,
+  CalendarDays, ChevronDown, Play, Quote, Mic2, Phone,
   ArrowUpRight, Linkedin,
 } from "lucide-react";
 import { useState } from "react";
@@ -373,6 +373,25 @@ export default function Home() {
             <Link to="/register" data-testid="cta-register-btn" className="mt-8 inline-flex gold-btn rounded-full px-8 py-4 text-base items-center gap-2 pulse-glow">
               Register Now <ArrowRight className="h-5 w-5" />
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* PARTNERSHIP DESK */}
+      <section className="partnership-strip" data-testid="partnership-contact">
+        <div className="max-w-7xl mx-auto px-5 sm:px-8">
+          <div className="partnership-inner">
+            <div className="flex items-start gap-4">
+              <div className="partnership-icon"><Phone className="h-5 w-5" /></div>
+              <div>
+                <p className="partnership-kicker">Put your name behind the movement</p>
+                <h2 className="mt-1 font-heading text-xl sm:text-2xl font-semibold text-white">Sponsorship & partnerships</h2>
+              </div>
+            </div>
+            <a href="tel:+2348064839339" className="partnership-number">
+              <span className="text-xs uppercase tracking-[0.18em] text-gray-400">Talk to the SPEAK team</span>
+              <span className="mt-1 text-lg sm:text-xl font-semibold text-[#F2AC19]">+234 806 483 9339</span>
+            </a>
           </div>
         </div>
       </section>
