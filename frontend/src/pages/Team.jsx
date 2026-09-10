@@ -1,12 +1,6 @@
 import { Link } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Linkedin } from "lucide-react";
-
-const team = [
-  { name: "Prophet Paul Bamikole", role: "Team member", image: "/team/Prophet-Paul-Bamikole.jpg", mark: "PB", tone: "team-amber", bio: "Helping shape the people, purpose and presence behind SPEAK." },
-  { name: "YTD", role: "Team member", image: "/team/YTD.jpeg", mark: "YTD", tone: "team-blue", bio: "Part of the team making room for meaningful conversations." },
-  { name: "Zainab Bello", role: "Community & Care", mark: "ZB", tone: "team-coral", bio: "Makes sure every voice feels invited, held and able to contribute." },
-  { name: "Daniel Udo", role: "Operations Lead", mark: "DU", tone: "team-moss", bio: "Keeps the moving parts moving, from first idea to final light." },
-];
+import { team } from "@/constants/team";
 
 export default function Team() {
   return (
@@ -17,7 +11,7 @@ export default function Team() {
           <div className="mt-16 max-w-3xl">
             <span className="text-xs uppercase tracking-[0.3em] text-[#E6B800]">Behind the signal</span>
             <h1 className="mt-4 font-heading font-extrabold text-5xl sm:text-7xl leading-[0.95] text-white">The people making room for <span className="gold-text-gradient">possibility.</span></h1>
-            <p className="mt-6 max-w-2xl text-base sm:text-lg leading-relaxed text-gray-400">A small, stubbornly hopeful team turning one day of gathering into a year of momentum.</p>
+            <p className="mt-6 max-w-2xl text-base sm:text-lg leading-relaxed text-gray-400">A vision driven and inspired team turning one day of gathering into a year of momentum.</p>
           </div>
         </div>
       </section>
@@ -27,7 +21,7 @@ export default function Team() {
             <article key={person.name} className={`team-page-card ${person.tone}`} data-testid={`team-member-${index}`}>
               <div className="team-card-top"><span className="font-mono text-xs text-white/45">0{index + 1}</span><Linkedin className="h-4 w-4 text-white/45" /></div>
               {person.image ? <img src={person.image} alt={person.name} className="team-page-photo" /> : <div className="team-mark">{person.mark}</div>}
-              <div className="relative z-10 mt-auto"><h2 className="font-heading text-2xl font-semibold text-white">{person.name}</h2><p className="mt-1 text-xs uppercase tracking-[0.18em] text-white/60">{person.role}</p><p className="mt-5 max-w-xs text-sm leading-relaxed text-white/70">{person.bio}</p></div>
+              <div className="relative z-10 mt-auto"><h2 className="font-heading text-2xl font-semibold text-white">{person.name}</h2></div>
             </article>
           ))}
         </div>

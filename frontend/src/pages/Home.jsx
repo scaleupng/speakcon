@@ -6,6 +6,7 @@ import {
   ArrowUpRight, Linkedin,
 } from "lucide-react";
 import { useState } from "react";
+import { team } from "@/constants/team";
 
 const HERO_VIDEO = "/media/hero-loop.mp4";
 const HERO_POSTER = "https://images.unsplash.com/photo-1761925116230-d24410fbe1a0?crop=entropy&cs=srgb&fm=jpg&q=85&w=1600";
@@ -44,13 +45,6 @@ const archiveYears = [
     role: "Founder · SPEAK 2024",
     quote: "An idea becomes impact the moment it leaves the room and starts serving someone else.",
   },
-];
-
-const team = [
-  { name: "Ada Nwosu", role: "Creative Director", mark: "AN", tone: "team-amber" },
-  { name: "Micheal Eze", role: "Experience Lead", mark: "ME", tone: "team-blue" },
-  { name: "Zainab Bello", role: "Community & Care", mark: "ZB", tone: "team-coral" },
-  { name: "Daniel Udo", role: "Operations Lead", mark: "DU", tone: "team-moss" },
 ];
 
 const faqTeaser = [
@@ -321,7 +315,7 @@ export default function Home() {
               <Link to="/team" className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-[#E6B800] hover:text-[#F5C71A] transition-colors">Behind the signal <ArrowUpRight className="h-4 w-4" /></Link>
               <h2 className="mt-3 font-heading font-bold text-3xl sm:text-5xl text-white leading-tight">Meet the people making room for <span className="gold-text-gradient">possibility.</span></h2>
             </div>
-            <p className="max-w-sm text-sm text-gray-500 leading-relaxed">A small, stubbornly hopeful team turning one day of gathering into a year of momentum.</p>
+            <p className="max-w-sm text-sm text-gray-500 leading-relaxed">A vision driven and inspired team turning one day of gathering into a year of momentum.</p>
           </div>
           <div className="team-grid mt-12">
             {team.map((person, index) => (
@@ -330,10 +324,9 @@ export default function Home() {
                   <span className="font-mono text-xs text-white/45">0{index + 1}</span>
                   <Linkedin className="h-4 w-4 text-white/45" />
                 </div>
-                <div className="team-mark">{person.mark}</div>
+                {person.image ? <img src={person.image} alt={person.name} className="team-card-photo" /> : <div className="team-mark">{person.mark}</div>}
                 <div className="mt-auto">
                   <h3 className="font-heading text-xl font-semibold text-white">{person.name}</h3>
-                  <p className="mt-1 text-xs uppercase tracking-[0.18em] text-white/60">{person.role}</p>
                 </div>
               </article>
             ))}
