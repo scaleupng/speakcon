@@ -29,21 +29,21 @@ const speakers = [
 const archiveYears = [
   {
     year: "2025",
-    theme: "The Bridge",
-    descriptor: "Building what connects us",
+    theme: "THE SHIFT",
+    descriptor: "Moving from intention to impact",
     image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?crop=entropy&cs=srgb&fm=jpg&q=85&w=1400",
     speaker: "Dr. Nkem Okoro",
     role: "Systems thinker · SPEAK 2025",
-    quote: "The future belongs to the people willing to build the bridge before they know who will cross it.",
+    quote: "The shift begins when we stop waiting for the moment and become ready to create it.",
   },
   {
     year: "2024",
-    theme: "The Spark",
-    descriptor: "Ideas that refuse to stay small",
+    theme: "THE REVOLUTION",
+    descriptor: "Ideas that change what is possible",
     image: "https://images.unsplash.com/photo-1505373877841-8d25f7d46678?crop=entropy&cs=srgb&fm=jpg&q=85&w=1400",
     speaker: "Tomi Adeyemi",
     role: "Founder · SPEAK 2024",
-    quote: "An idea becomes impact the moment it leaves the room and starts serving someone else.",
+    quote: "Every meaningful revolution starts with a people willing to imagine a different way forward.",
   },
 ];
 
@@ -178,9 +178,18 @@ export default function Home() {
       <section className="py-16 sm:py-24">
         <div className="max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-2 gap-12 items-center">
           <div className="relative rounded-3xl overflow-hidden border border-amber-500/20 order-2 lg:order-1">
-            <div className="flex h-72 items-center justify-center bg-[#0E1117] p-8 sm:h-96 sm:p-12">
-              <img src="/brand/speakcoin_logo.png" alt="SPEAK COIN" className="h-full w-full object-contain drop-shadow-[0_0_28px_rgba(230,184,0,0.28)]" />
-            </div>
+            <video
+              className="h-72 w-full object-cover sm:h-96"
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="metadata"
+              aria-label="SPEAK COIN animated loop"
+              data-testid="speakcoin-loop-video"
+            >
+              <source src="/brand/speakcoin_logo_loop.mp4" type="video/mp4" />
+            </video>
           </div>
           <div className="order-1 lg:order-2">
             <h2 className="mt-5 font-heading font-bold text-3xl sm:text-4xl text-white leading-tight">

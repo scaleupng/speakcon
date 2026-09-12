@@ -4,21 +4,21 @@ import { ArrowLeft, ArrowRight, Play, Quote, Mic2 } from "lucide-react";
 const editions = [
   {
     year: "2025",
-    theme: "The Bridge",
-    descriptor: "Building what connects us",
+    theme: "THE SHIFT",
+    descriptor: "Moving from intention to impact",
     image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?crop=entropy&cs=srgb&fm=jpg&q=85&w=1600",
     speaker: "Dr. Nkem Okoro",
     role: "Systems thinker · SPEAK 2025",
-    quote: "The future belongs to the people willing to build the bridge before they know who will cross it.",
+    quote: "The shift begins when we stop waiting for the moment and become ready to create it.",
   },
   {
     year: "2024",
-    theme: "The Spark",
-    descriptor: "Ideas that refuse to stay small",
+    theme: "THE REVOLUTION",
+    descriptor: "Ideas that change what is possible",
     image: "https://images.unsplash.com/photo-1505373877841-8d25f7d46678?crop=entropy&cs=srgb&fm=jpg&q=85&w=1600",
     speaker: "Tomi Adeyemi",
     role: "Founder · SPEAK 2024",
-    quote: "An idea becomes impact the moment it leaves the room and starts serving someone else.",
+    quote: "Every meaningful revolution starts with a people willing to imagine a different way forward.",
   },
 ];
 
