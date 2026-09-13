@@ -27,7 +27,7 @@ const speakers = [
   { name: "Big Yene", role: "Artist", image: "/speakers/2026/Big-Yene.jpg" },
   { name: "Rev. Mrs Adasi Bethel", role: "Pastor & Entrepreneur", image: "/speakers/2026/Rev-mrs-Adasi-Bethel.jpg" },
   { name: "Mr Samuel Olawale", role: "Social Media Expert", image: "/speakers/2026/mr-samuel-olawale.jpg" },
-  { name: "Mrs Regina Olajide", role: "Entrepreneur · Coming Soon" },
+  { name: "Mrs Regina Olajide", role: "Entrepreneur" },
 ];
 
 const archiveYears = [
