@@ -19,7 +19,7 @@ function fireConfetti() {
 
 export default function Register() {
   const [searchParams] = useSearchParams();
-  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", referralCode: (searchParams.get("ref") || "").toUpperCase() });
+  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", whatsappNumber: "", referralCode: (searchParams.get("ref") || "").toUpperCase() });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
   const { executeRecaptcha } = useGoogleReCaptcha();
@@ -40,6 +40,7 @@ export default function Register() {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         email: form.email.trim(),
+        whatsappNumber: form.whatsappNumber.trim(),
         referralCode: form.referralCode.trim() || null,
         recaptchaToken,
       });
@@ -101,6 +102,11 @@ export default function Register() {
             <label className="text-sm text-gray-300">Email address *</label>
             <input required type="email" value={form.email} onChange={update("email")} data-testid="register-email"
               className="mt-1.5 w-full rounded-xl bg-[#0E1117] border border-amber-500/20 px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-amber-500/50" placeholder="you@example.com" />
+          </div>
+          <div>
+            <label className="text-sm text-gray-300">WhatsApp number *</label>
+            <input required type="tel" value={form.whatsappNumber} onChange={update("whatsappNumber")} data-testid="register-whatsapp-number"
+              className="mt-1.5 w-full rounded-xl bg-[#0E1117] border border-amber-500/20 px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-amber-500/50" placeholder="+234 801 234 5678" />
           </div>
           <div>
             <label className="text-sm text-gray-300">Referral code <span className="text-gray-500">(optional)</span></label>

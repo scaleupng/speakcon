@@ -209,6 +209,7 @@ class RegisterRequest(BaseModel):
     firstName: str = Field(min_length=1, max_length=60)
     lastName: str = Field(min_length=1, max_length=60)
     email: EmailStr
+    whatsappNumber: str = Field(min_length=7, max_length=30)
     referralCode: Optional[str] = None
     recaptchaToken: str = ""
 
@@ -249,6 +250,9 @@ async def root():
 @api_router.post("/register")
 async def register(req: RegisterRequest):
     email = req.email.lower().strip()
+    whatsapp_number = req.whatsappNumber.strip()
+    if len(whatsapp_number) < 7:
+        raise HTTPException(status_code=422, detail="Enter a valid WhatsApp number.")
 
     recaptcha_ok = await verify_recaptcha(req.recaptchaToken)
     if not recaptcha_ok:
@@ -293,6 +297,7 @@ async def register(req: RegisterRequest):
         "firstName": req.firstName.strip(),
         "lastName": req.lastName.strip(),
         "email": email,
+        "whatsappNumber": whatsapp_number,
         "referralCodeUsed": referred_by,
         "recaptchaResult": recaptcha_result,
         "status": "pending",
@@ -391,6 +396,7 @@ async def create_password(req: CreatePasswordRequest):
         "firstName": pending["firstName"],
         "lastName": pending["lastName"],
         "email": email,
+        "whatsappNumber": pending.get("whatsappNumber"),
         "passwordHash": hash_password(req.password),
         "isVerified": True,
         "speakCoinBalance": initial_reward,
@@ -524,6 +530,7 @@ async def build_registration_rows():
             "firstName": u["firstName"],
             "lastName": u["lastName"],
             "email": u["email"],
+            "whatsappNumber": u.get("whatsappNumber"),
             "status": "verified",
             "speakCoinBalance": u.get("speakCoinBalance", 0),
             "ownReferralCode": u.get("ownReferralCode"),
@@ -539,6 +546,7 @@ async def build_registration_rows():
             "firstName": p["firstName"],
             "lastName": p["lastName"],
             "email": p["email"],
+            "whatsappNumber": p.get("whatsappNumber"),
             "status": "expired" if expired else "pending",
             "speakCoinBalance": 0,
             "ownReferralCode": None,
@@ -569,7 +577,7 @@ async def admin_registrations(
 async def admin_export(admin: dict = Depends(get_current_admin)):
     rows = await build_registration_rows()
     output = io.StringIO()
-    fields = ["firstName", "lastName", "email", "status", "speakCoinBalance", "ownReferralCode", "referredBy", "referralCount", "createdAt", "verifiedAt"]
+    fields = ["firstName", "lastName", "email", "whatsappNumber", "status", "speakCoinBalance", "ownReferralCode", "referredBy", "referralCount", "createdAt", "verifiedAt"]
     writer = csv.DictWriter(output, fieldnames=fields)
     writer.writeheader()
     for r in rows:

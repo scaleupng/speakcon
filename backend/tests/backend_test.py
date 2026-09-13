@@ -58,6 +58,7 @@ def test_register_success_and_dev_token(s):
         "firstName": "Ada",
         "lastName": "Lovelace",
         "email": email,
+        "whatsappNumber": "+2348012345678",
         "recaptchaToken": "dev-bypass",
     })
     assert r.status_code == 200, r.text
@@ -75,6 +76,7 @@ def test_register_duplicate_pending_returns_409(s):
         "firstName": "Ada",
         "lastName": "Lovelace",
         "email": STATE["reg_email"],
+        "whatsappNumber": "+2348012345678",
         "recaptchaToken": "dev-bypass",
     })
     assert r.status_code == 409
@@ -85,6 +87,7 @@ def test_register_invalid_referral_returns_400(s):
         "firstName": "Bad",
         "lastName": "Ref",
         "email": _resend_email("badref"),
+        "whatsappNumber": "+2348012345678",
         "referralCode": "NOPE12345",
         "recaptchaToken": "dev-bypass",
     })
@@ -179,6 +182,7 @@ def test_referral_flow_credits_referrer(s):
         "firstName": "Bob",
         "lastName": "Referred",
         "email": email_b,
+        "whatsappNumber": "+2348012345679",
         "referralCode": STATE["user_a_ref_code"],
         "recaptchaToken": "dev-bypass",
     })
@@ -203,6 +207,7 @@ def test_resend_cooldown_returns_429(s):
         "firstName": "Rick",
         "lastName": "Send",
         "email": email,
+        "whatsappNumber": "+2348012345680",
         "recaptchaToken": "dev-bypass",
     })
     assert r.status_code == 200, r.text

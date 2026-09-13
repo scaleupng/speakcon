@@ -20,10 +20,14 @@ const pillars = [
 ];
 
 const speakers = [
-  { name: "Speaker To Be Announced", role: "Keynote · Leadership" },
-  { name: "Speaker To Be Announced", role: "Innovation & Technology" },
-  { name: "Speaker To Be Announced", role: "Purpose & Impact" },
-  { name: "Speaker To Be Announced", role: "Entrepreneurship" },
+  { name: "Prophet Paul Bamikole", role: "Convener", image: "/speakers/2026/prophet-paul-bamikole.jpg" },
+  { name: "Mr Joshua Balogun", role: "Financial Expert", image: "/speakers/2026/mr-Joshua-balogun.jpg" },
+  { name: "Mr Kelechi Thompson", role: "Management Consultant", image: "/speakers/2026/mr-kelechi-thompson.jpg" },
+  { name: "The Oracles", role: "Poetry", image: "/speakers/2026/The-oracles.jpg" },
+  { name: "Big Yene", role: "Artist", image: "/speakers/2026/Big-Yene.jpg" },
+  { name: "Rev. Mrs Adasi Bethel", role: "Pastor & Entrepreneur", image: "/speakers/2026/Rev-mrs-Adasi-Bethel.jpg" },
+  { name: "Mr Samuel Olawale", role: "Social Media Expert", image: "/speakers/2026/mr-samuel-olawale.jpg" },
+  { name: "Mrs Regina Olajide", role: "Entrepreneur · Coming Soon" },
 ];
 
 const archiveYears = [
@@ -240,14 +244,18 @@ export default function Home() {
             <div>
               <h2 className="mt-3 font-heading font-bold text-3xl sm:text-4xl text-white">Speakers</h2>
             </div>
-            <span className="text-sm text-gray-500">Full lineup announced soon</span>
+            <span className="text-sm text-gray-500">2026 lineup</span>
           </div>
           <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {speakers.map((s, i) => (
               <div key={i} className="card-tactical rounded-2xl p-6 text-center fade-up" style={{ animationDelay: `${i * 0.08}s` }} data-testid={`speaker-card-${i}`}>
-                <div className="mx-auto h-24 w-24 rounded-full border-2 border-amber-500/30 bg-gradient-to-b from-[#1C2230] to-[#0E1117] grid place-items-center">
-                  <Users className="h-10 w-10 text-amber-500/40" />
-                </div>
+                {s.image ? (
+                  <img src={s.image} alt={s.name} className="mx-auto h-24 w-24 rounded-full border-2 border-amber-500/30 object-cover" />
+                ) : (
+                  <div className="mx-auto h-24 w-24 rounded-full border-2 border-amber-500/30 bg-gradient-to-b from-[#1C2230] to-[#0E1117] grid place-items-center">
+                    <Users className="h-10 w-10 text-amber-500/40" />
+                  </div>
+                )}
                 <h3 className="mt-5 font-heading font-semibold text-white text-base">{s.name}</h3>
                 <p className="mt-1 text-xs uppercase tracking-wide text-[#E6B800]">{s.role}</p>
               </div>

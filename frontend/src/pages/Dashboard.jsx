@@ -20,6 +20,12 @@ const XIcon = ({ className = "" }) => (
   </svg>
 );
 
+const FacebookIcon = ({ className = "" }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+    <path d="M13.5 22v-8h2.75l.5-3h-3.25V9.05c0-.87.24-1.55 1.62-1.55h1.73V4.82c-.3-.04-1.32-.12-2.5-.12-2.48 0-4.18 1.51-4.18 4.29V11H7.4v3h2.77v8h3.33Z" />
+  </svg>
+);
+
 export default function Dashboard() {
   const { user, refresh } = useAuth();
   const [ledger, setLedger] = useState([]);
@@ -37,6 +43,7 @@ export default function Dashboard() {
   const shareText = `Join me at SPEAK 2026: THE OUTPOST 🎯 Register free and earn SPEAK COIN using my referral code ${user.ownReferralCode}:`;
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${shareText} ${referralLink}`)}`;
   const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(referralLink)}`;
+  const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralLink)}`;
 
   const passPayload = `SPEAK2026|${user.id}|${user.firstName} ${user.lastName}|${user.email}`;
 
@@ -135,6 +142,10 @@ export default function Dashboard() {
             <a href={xUrl} target="_blank" rel="noopener noreferrer" data-testid="dashboard-share-x"
               className="flex items-center gap-2 rounded-full bg-white text-black font-semibold px-5 py-2.5 text-sm transition-transform hover:-translate-y-0.5">
               <XIcon className="h-4 w-4" /> Share on X
+            </a>
+            <a href={facebookUrl} target="_blank" rel="noopener noreferrer" data-testid="dashboard-share-facebook"
+              className="flex items-center gap-2 rounded-full bg-[#1877F2] text-white font-semibold px-5 py-2.5 text-sm transition-transform hover:-translate-y-0.5">
+              <FacebookIcon className="h-4 w-4" /> Facebook
             </a>
             <button onClick={() => copy(`${shareText} ${referralLink}`, "Invite message")} data-testid="dashboard-share-copy"
               className="flex items-center gap-2 outline-gold-btn rounded-full px-5 py-2.5 text-sm">

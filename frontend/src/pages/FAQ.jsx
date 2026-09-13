@@ -4,7 +4,7 @@ import { Search, ChevronDown, ArrowRight } from "lucide-react";
 
 const faqs = [
   { cat: "Registration", q: "How much does it cost to register?", a: "Registration for SPEAK 2026 is completely free. Verified attendees also receive free SPEAK COIN as a welcome reward." },
-  { cat: "Registration", q: "What information do I need to register?", a: "Just your first name, last name and email address. A referral code is optional if a friend invited you." },
+  { cat: "Registration", q: "What information do I need to register?", a: "Your first name, last name, email address and WhatsApp number. A referral code is optional if a friend invited you." },
   { cat: "Registration", q: "Can I register more than once with the same email?", a: "No. Each email can only be registered once — email is our unique identifier to prevent duplicates." },
   { cat: "Verification", q: "How do I verify my registration?", a: "After registering, we email you a verification link. Click it to create your password and complete verification." },
   { cat: "Verification", q: "My verification link expired. What now?", a: "Verification links expire after a few hours for security. Simply register again or use the resend option to get a fresh link." },

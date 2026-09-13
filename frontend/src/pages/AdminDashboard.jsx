@@ -205,6 +205,7 @@ export default function AdminDashboard() {
                     <tr className="text-left text-gray-400 border-b border-white/10">
                       <th className="px-5 py-4 font-medium">Name</th>
                       <th className="px-5 py-4 font-medium">Email</th>
+                      <th className="px-5 py-4 font-medium">WhatsApp</th>
                       <th className="px-5 py-4 font-medium">Status</th>
                       <th className="px-5 py-4 font-medium">Coin</th>
                       <th className="px-5 py-4 font-medium">Ref Code</th>
@@ -217,6 +218,7 @@ export default function AdminDashboard() {
                       <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]" data-testid={`admin-row-${i}`}>
                         <td className="px-5 py-4 text-white">{r.firstName} {r.lastName}</td>
                         <td className="px-5 py-4 text-gray-300">{r.email}</td>
+                        <td className="px-5 py-4 text-gray-300">{r.whatsappNumber || "—"}</td>
                         <td className="px-5 py-4">
                           <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize ${statusStyles[r.status]}`}>{r.status}</span>
                         </td>
@@ -226,7 +228,7 @@ export default function AdminDashboard() {
                         <td className="px-5 py-4 text-gray-400">{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "—"}</td>
                       </tr>
                     )) : (
-                      <tr><td colSpan={7} className="px-5 py-12 text-center text-gray-500">No registrations found.</td></tr>
+                      <tr><td colSpan={8} className="px-5 py-12 text-center text-gray-500">No registrations found.</td></tr>
                     )}
                   </tbody>
                 </table>
