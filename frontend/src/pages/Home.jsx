@@ -27,7 +27,7 @@ const speakers = [
   { name: "Big Yene", role: "Artist", image: "/speakers/2026/Big-Yene.jpg" },
   { name: "Rev. Mrs Adasi Bethel", role: "Pastor & Entrepreneur", image: "/speakers/2026/Rev-mrs-Adasi-Bethel.jpg" },
   { name: "Mr Samuel Olawale", role: "Social Media Expert", image: "/speakers/2026/mr-samuel-olawale.jpg" },
-  { name: "Mrs Regina Olajide", role: "Entrepreneur" },
+  { name: "Mrs Regina Olajide", role: "Entrepreneur" , image: "/speakers/2026/mrs-regina-olajide.jpg" },
 ];
 
 const archiveYears = [
@@ -182,18 +182,12 @@ export default function Home() {
       <section className="py-16 sm:py-24">
         <div className="max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-2 gap-12 items-center">
           <div className="relative rounded-3xl overflow-hidden border border-amber-500/20 order-2 lg:order-1">
-            <video
+            <img
+              src="/brand/speakcoinloop.gif"
+              alt="SPEAK COIN animated loop"
               className="h-72 w-full object-cover sm:h-96"
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="metadata"
-              aria-label="SPEAK COIN animated loop"
               data-testid="speakcoin-loop-video"
-            >
-              <source src="/brand/speakcoin_logo_loop.mp4" type="video/mp4" />
-            </video>
+            />
           </div>
           <div className="order-1 lg:order-2">
             <h2 className="mt-5 font-heading font-bold text-3xl sm:text-4xl text-white leading-tight">
