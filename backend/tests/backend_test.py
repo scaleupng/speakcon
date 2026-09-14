@@ -120,7 +120,7 @@ def test_create_password_success(s):
     u = d["user"]
     assert u["email"] == STATE["reg_email"].lower()
     assert u["isVerified"] is True
-    assert u["speakCoinBalance"] == 100
+    assert u["speakCoinBalance"] == 500
     assert u["ownReferralCode"].startswith("SPK")
     STATE["user_a_token"] = d["access_token"]
     STATE["user_a_ref_code"] = u["ownReferralCode"]
@@ -196,7 +196,7 @@ def test_referral_flow_credits_referrer(s):
                       headers={"Authorization": f"Bearer {STATE['user_a_token']}"})
     assert me.status_code == 200
     md = me.json()
-    assert md["speakCoinBalance"] == 150, md
+    assert md["speakCoinBalance"] == 2500, md
     assert md["referralCount"] == 1
 
 

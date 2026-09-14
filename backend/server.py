@@ -129,8 +129,8 @@ async def get_settings() -> dict:
     if not s:
         s = {
             "id": "global",
-            "initialSpeakCoinReward": 100,
-            "referralBonusReward": 50,
+            "initialSpeakCoinReward": 500,
+            "referralBonusReward": 2000,
             "verificationExpiryHours": 4,
             "resendCooldownSeconds": 60,
         }
@@ -390,7 +390,9 @@ async def create_password(req: CreatePasswordRequest):
     while await db.users.find_one({"ownReferralCode": referral_code}):
         referral_code = gen_referral_code()
 
-    initial_reward = settings["initialSpeakCoinReward"]
+    has_referral = bool(pending.get("referralCodeUsed"))
+    initial_reward = 1000 if has_referral else 500
+    referral_bonus = 2000
     user = {
         "id": user_id,
         "firstName": pending["firstName"],
@@ -423,13 +425,12 @@ async def create_password(req: CreatePasswordRequest):
     if pending.get("referralCodeUsed"):
         referrer = await db.users.find_one({"ownReferralCode": pending["referralCodeUsed"]}, {"_id": 0})
         if referrer and referrer["id"] != user_id:
-            bonus = settings["referralBonusReward"]
-            await db.users.update_one({"id": referrer["id"]}, {"$inc": {"speakCoinBalance": bonus}})
+            await db.users.update_one({"id": referrer["id"]}, {"$inc": {"speakCoinBalance": referral_bonus}})
             await db.coin_ledger.insert_one({
                 "id": str(uuid.uuid4()),
                 "userId": referrer["id"],
                 "type": "referral_reward",
-                "amount": bonus,
+                "amount": referral_bonus,
                 "reason": f"Referral bonus: {email} joined using your code",
                 "createdBy": "system",
                 "createdAt": iso(now_utc()),
