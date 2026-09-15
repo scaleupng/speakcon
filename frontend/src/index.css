@@ -161,7 +161,10 @@ h1, h2, h3, h4, h5, .font-heading {
 .team-card-top { display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 1; }
 .team-mark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -55%) rotate(-8deg); font-family: 'Poppins', sans-serif; font-size: clamp(3rem, 7vw, 6rem); font-weight: 800; line-height: 1; color: rgba(255,255,255,0.18); letter-spacing: -0.08em; }
 .team-card h3, .team-card p { position: relative; z-index: 1; }
-.team-card-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; opacity: 0.88; filter: saturate(0.82); transition: transform 0.5s ease, opacity 0.5s ease; }
+.speaker-photo,
+.team-card-photo,
+.team-page-photo { object-position: center 18%; }
+.team-card-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.88; filter: saturate(0.82); transition: transform 0.5s ease, opacity 0.5s ease; }
 .team-card:hover .team-card-photo { transform: scale(1.03); opacity: 1; }
 .team-card:has(.team-card-photo)::before { content: ""; position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(7,20,38,0.96), rgba(7,20,38,0.05) 72%); pointer-events: none; }
 
@@ -171,6 +174,9 @@ h1, h2, h3, h4, h5, .font-heading {
 }
 @media (max-width: 480px) {
   .team-grid { grid-template-columns: 1fr; }
+  .home-team-card[data-person="David Bamidele"] .team-card-photo { object-position: center 18%; }
+  .home-team-card[data-person="Samuel Gbemiga"] .team-card-photo { object-position: center 25%; }
+  .home-team-card[data-person="Mercy Royalty"] .team-card-photo { object-position: center 38%; }
   .archive-image-wrap, .archive-image { min-height: 18rem; }
 }
 
@@ -186,7 +192,7 @@ h1, h2, h3, h4, h5, .font-heading {
 .team-page-card { min-height: 28rem; padding: 1.5rem; display: flex; flex-direction: column; position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,0.12); transition: transform 0.25s ease, border-color 0.25s ease; }
 .team-page-card:hover { transform: translateY(-5px); border-color: rgba(255,255,255,0.35); }
 .team-page-card::after { content: ""; position: absolute; width: 18rem; height: 18rem; border-radius: 999px; right: -7rem; bottom: -7rem; background: rgba(255,255,255,0.13); }
-.team-page-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; opacity: 0.88; filter: saturate(0.82); transition: transform 0.5s ease, opacity 0.5s ease; }
+.team-page-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.88; filter: saturate(0.82); transition: transform 0.5s ease, opacity 0.5s ease; }
 .team-page-card:hover .team-page-photo { transform: scale(1.03); opacity: 1; }
 .team-page-card:has(.team-page-photo)::before { content: ""; position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(7,20,38,0.96), rgba(7,20,38,0.05) 72%); pointer-events: none; }
 

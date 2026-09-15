@@ -244,7 +244,7 @@ export default function Home() {
             {speakers.map((s, i) => (
               <div key={i} className="card-tactical rounded-2xl p-6 text-center fade-up" style={{ animationDelay: `${i * 0.08}s` }} data-testid={`speaker-card-${i}`}>
                 {s.image ? (
-                  <img src={s.image} alt={s.name} className="mx-auto h-24 w-24 rounded-full border-2 border-amber-500/30 object-cover" />
+                  <img src={s.image} alt={s.name} className="speaker-photo mx-auto h-24 w-24 rounded-full border-2 border-amber-500/30 object-cover" />
                 ) : (
                   <div className="mx-auto h-24 w-24 rounded-full border-2 border-amber-500/30 bg-gradient-to-b from-[#1C2230] to-[#0E1117] grid place-items-center">
                     <Users className="h-10 w-10 text-amber-500/40" />
@@ -330,12 +330,29 @@ export default function Home() {
           </div>
           <div className="team-grid mt-12">
             {team.map((person, index) => (
-              <article key={person.name} className={`team-card ${person.tone}`}>
+              <article key={person.name} className={`home-team-card team-card ${person.tone}`} data-person={person.name}>
                 <div className="team-card-top">
                   <span className="font-mono text-xs text-white/45">0{index + 1}</span>
                   <Linkedin className="h-4 w-4 text-white/45" />
                 </div>
-                {person.image ? <img src={person.image} alt={person.name} className="team-card-photo" /> : <div className="team-mark">{person.mark}</div>}
+                {person.image ? (
+                  <img
+                    src={person.image}
+                    alt={person.name}
+                    className="team-card-photo"
+                    style={
+                      person.name === "David Bamidele"
+                        ? { objectPosition: "center 40%" }
+                        : person.name === "Samuel Gbemiga"
+                          ? { objectPosition: "center 50%" }
+                          : person.name === "Mercy Royalty"
+                            ? { objectPosition: "center 38%" }
+                            : undefined
+                    }
+                  />
+                ) : (
+                  <div className="team-mark">{person.mark}</div>
+                )}
                 <div className="mt-auto">
                   <h3 className="font-heading text-xl font-semibold text-white">{person.name}</h3>
                 </div>
