@@ -80,6 +80,10 @@ let webpackConfig = {
       '@': path.resolve(__dirname, 'src'),
     },
     configure: (webpackConfig) => {
+      webpackConfig.ignoreWarnings = [
+        ...(webpackConfig.ignoreWarnings || []),
+        { message: /Critical dependency: the request of a dependency is an expression/ },
+      ];
 
       // Add ignored patterns to reduce watched directories
         webpackConfig.watchOptions = {
