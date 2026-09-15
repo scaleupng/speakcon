@@ -6,6 +6,7 @@ import os
 import io
 import csv
 import asyncio
+import json
 import logging
 import secrets
 import string
@@ -35,6 +36,7 @@ RECAPTCHA_SECRET_KEY = os.environ['RECAPTCHA_SECRET_KEY']
 RECAPTCHA_ENFORCE = os.environ.get('RECAPTCHA_ENFORCE', 'false').lower() == 'true'
 PUBLIC_APP_URL = os.environ.get('PUBLIC_APP_URL', 'http://localhost:3000')
 DEV_EXPOSE_TOKENS = os.environ.get('DEV_EXPOSE_TOKENS', 'false').lower() == 'true'
+TOKEN_SERVICE_PATH = ROOT_DIR / 'tokenService.js'
 
 resend.api_key = RESEND_API_KEY
 
@@ -133,6 +135,7 @@ async def get_settings() -> dict:
             "referralBonusReward": 2000,
             "verificationExpiryHours": 4,
             "resendCooldownSeconds": 60,
+            "isClaimingActive": False,
         }
         await db.system_settings.insert_one(dict(s))
     return s
@@ -233,6 +236,11 @@ class SettingsUpdate(BaseModel):
     referralBonusReward: Optional[int] = None
     verificationExpiryHours: Optional[int] = None
     resendCooldownSeconds: Optional[int] = None
+    isClaimingActive: Optional[bool] = None
+
+
+class ClaimRewardsRequest(BaseModel):
+    walletAddress: str = Field(min_length=42, max_length=42)
 
 
 class AddAdminRequest(BaseModel):
@@ -401,7 +409,11 @@ async def create_password(req: CreatePasswordRequest):
         "whatsappNumber": pending.get("whatsappNumber"),
         "passwordHash": hash_password(req.password),
         "isVerified": True,
-        "speakCoinBalance": initial_reward,
+        "speakCoinBalance": 0,
+        "pendingSpeakBalance": initial_reward,
+        "pendingReferralRewards": [],
+        "rewardClaimStatus": "pending",
+        "rewardTransactions": [],
         "ownReferralCode": referral_code,
         "referredBy": pending.get("referralCodeUsed"),
         "createdAt": iso(now_utc()),
@@ -414,22 +426,32 @@ async def create_password(req: CreatePasswordRequest):
     await db.coin_ledger.insert_one({
         "id": str(uuid.uuid4()),
         "userId": user_id,
-        "type": "initial_reward",
+        "type": "pending_initial_reward",
         "amount": initial_reward,
-        "reason": "Initial SPEAK COIN reward for verified registration",
+        "reason": "Pending SPEAK COIN reward for verified registration",
         "createdBy": "system",
         "createdAt": iso(now_utc()),
     })
 
-    # referral reward -> credit the referrer
+    # Referral rewards remain pending until the referrer claims them.
     if pending.get("referralCodeUsed"):
         referrer = await db.users.find_one({"ownReferralCode": pending["referralCodeUsed"]}, {"_id": 0})
         if referrer and referrer["id"] != user_id:
-            await db.users.update_one({"id": referrer["id"]}, {"$inc": {"speakCoinBalance": referral_bonus}})
+            await db.users.update_one(
+                {"id": referrer["id"]},
+                {
+                    "$inc": {"pendingSpeakBalance": referral_bonus},
+                    "$push": {"pendingReferralRewards": {
+                        "referredUserId": user_id,
+                        "amount": referral_bonus,
+                        "status": "pending",
+                    }},
+                },
+            )
             await db.coin_ledger.insert_one({
                 "id": str(uuid.uuid4()),
                 "userId": referrer["id"],
-                "type": "referral_reward",
+                "type": "pending_referral_reward",
                 "amount": referral_bonus,
                 "reason": f"Referral bonus: {email} joined using your code",
                 "createdBy": "system",
@@ -448,10 +470,122 @@ async def create_password(req: CreatePasswordRequest):
     token = create_token(user_id, email, "attendee")
     return {
         "status": "verified",
-        "message": f"You're verified! {initial_reward} SPEAK COIN credited to your account.",
+        "message": f"You're verified! {initial_reward} SPEAK COIN is pending and ready to claim when Live Claim opens.",
         "access_token": token,
         "user": {k: v for k, v in user.items() if k != "passwordHash"},
     }
+
+
+async def run_token_service(
+    user_address: str,
+    referrer_address: Optional[str] = None,
+    user_amount: int = 500,
+    referrer_amount: int = 0,
+) -> dict:
+    payload = json.dumps({
+        "userAddress": user_address,
+        "referrerAddress": referrer_address,
+        "userAmount": user_amount,
+        "referrerAmount": referrer_amount,
+    })
+    process = await asyncio.create_subprocess_exec(
+        "node", str(TOKEN_SERVICE_PATH), "--claim-rewards",
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await process.communicate(payload.encode())
+    if process.returncode != 0:
+        raise RuntimeError(stderr.decode().strip() or "Token transfer failed")
+    return json.loads(stdout.decode())
+
+
+@api_router.get("/claim-status")
+async def claim_status(user: dict = Depends(get_current_user)):
+    settings = await get_settings()
+    return {
+        "isClaimingActive": bool(settings.get("isClaimingActive", False)),
+        "pendingSpeakBalance": user.get("pendingSpeakBalance", 0),
+        "rewardClaimStatus": user.get("rewardClaimStatus", "pending"),
+        "rewardTransactions": user.get("rewardTransactions", []),
+    }
+
+
+@api_router.post("/claim-rewards")
+async def claim_rewards(req: ClaimRewardsRequest, user: dict = Depends(get_current_user)):
+    settings = await get_settings()
+    if not settings.get("isClaimingActive", False):
+        raise HTTPException(status_code=403, detail="Rewards Stationed. Claiming opens soon.")
+
+    pending_amount = int(user.get("pendingSpeakBalance", 0))
+    if pending_amount <= 0 or user.get("rewardClaimStatus") == "claimed":
+        raise HTTPException(status_code=409, detail="There are no pending SPEAK rewards to claim.")
+
+    referrer = None
+    referral_reward = None
+    if user.get("referredBy"):
+        referrer = await db.users.find_one({"ownReferralCode": user["referredBy"]}, {"_id": 0})
+        referral_reward = next((
+            reward for reward in (referrer or {}).get("pendingReferralRewards", [])
+            if reward.get("referredUserId") == user["id"] and reward.get("status") == "pending"
+        ), None)
+        if not referral_reward:
+            referrer = None
+        elif not referrer.get("walletAddress"):
+            raise HTTPException(status_code=409, detail="Your referrer must connect a wallet before this reward can be claimed.")
+
+    claim_filter = {"id": user["id"], "pendingSpeakBalance": {"$gt": 0}, "rewardClaimStatus": {"$ne": "processing"}}
+    locked = await db.users.update_one(claim_filter, {"$set": {"rewardClaimStatus": "processing", "walletAddress": req.walletAddress}})
+    if locked.modified_count != 1:
+        raise HTTPException(status_code=409, detail="This reward claim is already being processed.")
+
+    referrer_address = referrer.get("walletAddress") if referrer else None
+    referrer_amount = int(referral_reward["amount"]) if referrer and referral_reward else 0
+    try:
+        result = await run_token_service(
+            req.walletAddress,
+            referrer_address,
+            pending_amount,
+            referrer_amount,
+        )
+        transactions = result["receipts"]
+        await db.users.update_one({"id": user["id"]}, {"$set": {
+            "speakCoinBalance": user.get("speakCoinBalance", 0) + pending_amount,
+            "pendingSpeakBalance": 0,
+            "rewardClaimStatus": "claimed",
+            "walletAddress": req.walletAddress,
+            "rewardTransactions": transactions,
+        }})
+        own_receipt = next(item for item in transactions if item["address"].lower() == req.walletAddress.lower())
+        claimed_referrals = [
+            {**reward, "status": "claimed", "txHash": own_receipt["hash"]}
+            if reward.get("status") == "pending" else reward
+            for reward in user.get("pendingReferralRewards", [])
+        ]
+        if claimed_referrals:
+            await db.users.update_one({"id": user["id"]}, {"$set": {"pendingReferralRewards": claimed_referrals}})
+        if referrer:
+            referrer_receipt = next(item for item in transactions if item["address"].lower() == referrer_address.lower())
+            await db.users.update_one({"id": referrer["id"]}, {
+                "$inc": {"speakCoinBalance": referrer_amount, "pendingSpeakBalance": -referrer_amount},
+                "$set": {"walletAddress": referrer_address},
+                "$push": {"rewardTransactions": referrer_receipt},
+            })
+            await db.users.update_one(
+                {"id": referrer["id"], "pendingReferralRewards.referredUserId": user["id"]},
+                {"$set": {"pendingReferralRewards.$.status": "claimed", "pendingReferralRewards.$.txHash": referrer_receipt["hash"]}},
+            )
+        for item in transactions:
+            await db.coin_ledger.insert_one({
+                "id": str(uuid.uuid4()), "userId": user["id"] if item["address"].lower() == req.walletAddress.lower() else referrer["id"],
+                "type": "claim_reward", "amount": int(item["amount"]), "txHash": item["hash"],
+                "reason": "SPEAK Conference reward claim", "createdBy": "treasury", "createdAt": iso(now_utc()),
+            })
+        return {"status": "claimed", "transactions": transactions, "user": {k: v for k, v in user.items() if k != "passwordHash"}}
+    except Exception as exc:
+        await db.users.update_one({"id": user["id"]}, {"$set": {"rewardClaimStatus": "pending"}})
+        logger.exception("Reward claim failed")
+        raise HTTPException(status_code=502, detail=f"Reward transfer failed: {exc}")
 
 
 # ----------------------- Attendee auth -----------------------
@@ -603,6 +737,24 @@ async def admin_update_settings(req: SettingsUpdate, admin: dict = Depends(get_c
     if updates:
         await db.system_settings.update_one({"id": "global"}, {"$set": updates}, upsert=True)
     return await get_settings()
+
+
+@api_router.get("/admin/outpost-control")
+async def admin_outpost_control(admin: dict = Depends(get_current_admin)):
+    settings = await get_settings()
+    return {"isClaimingActive": bool(settings.get("isClaimingActive", False))}
+
+
+@api_router.put("/admin/outpost-control")
+async def update_admin_outpost_control(req: SettingsUpdate, admin: dict = Depends(get_current_admin)):
+    if req.isClaimingActive is None:
+        raise HTTPException(status_code=422, detail="isClaimingActive is required.")
+    await db.system_settings.update_one(
+        {"id": "global"},
+        {"$set": {"isClaimingActive": req.isClaimingActive}},
+        upsert=True,
+    )
+    return {"isClaimingActive": req.isClaimingActive}
 
 
 @api_router.get("/admin/admins")

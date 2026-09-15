@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import ClaimButton from "@/components/ui/ClaimButton";
 
 const WhatsAppIcon = ({ className = "" }) => (
   <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
@@ -105,6 +106,15 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="mt-6 glass rounded-2xl p-7 flex flex-wrap items-center justify-between gap-5" data-testid="dashboard-claim-card">
+        <div>
+          <div className="text-xs uppercase tracking-[0.25em] text-[#E6B800]">SPEAK COIN rewards</div>
+          <h2 className="mt-2 font-heading font-semibold text-xl text-white">Your pending balance is stationed.</h2>
+          <p className="mt-2 text-sm text-gray-400">Connect your wallet to claim when the rewards station opens.</p>
+        </div>
+        <ClaimButton />
       </div>
 
       {/* referral */}
