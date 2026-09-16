@@ -15,6 +15,10 @@ export function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  const ownedBalance = user
+    ? Number(user.totalSpeakBalance ?? (Number(user.speakCoinBalance || 0) + Number(user.pendingSpeakBalance || 0)))
+    : 0;
+
   const handleLogout = async () => {
     await logout();
     navigate("/");
@@ -45,7 +49,7 @@ export function Navbar() {
             <>
               <Link to="/dashboard" data-testid="nav-dashboard-btn" className="flex items-center gap-2 text-sm font-medium text-gray-200 hover:text-[#E6B800] transition-colors">
                 <Coins className="h-4 w-4 text-[#E6B800]" />
-                {user.speakCoinBalance} COIN
+                {ownedBalance} COIN
               </Link>
               <button onClick={handleLogout} data-testid="nav-logout-btn" className="outline-gold-btn rounded-full px-4 py-2 text-sm flex items-center gap-1.5">
                 <LogOut className="h-4 w-4" /> Logout
@@ -71,7 +75,7 @@ export function Navbar() {
           ))}
           {user ? (
             <>
-              <Link to="/dashboard" onClick={() => setOpen(false)} className="block text-[#E6B800] py-1">Dashboard ({user.speakCoinBalance} COIN)</Link>
+              <Link to="/dashboard" onClick={() => setOpen(false)} className="block text-[#E6B800] py-1">Dashboard ({ownedBalance} COIN)</Link>
               <button onClick={handleLogout} className="outline-gold-btn rounded-full px-4 py-2 text-sm w-full">Logout</button>
             </>
           ) : (
