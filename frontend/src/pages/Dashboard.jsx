@@ -39,6 +39,9 @@ export default function Dashboard() {
 
   if (!user) return null;
 
+  const ownedBalance = Number(user.speakCoinBalance || 0) + Number(user.pendingSpeakBalance || 0);
+  const balanceClaimed = Number(user.pendingSpeakBalance || 0) === 0;
+
   const referralLink = `${window.location.origin}/register?ref=${user.ownReferralCode}`;
 
   const shareText = `Join me at SPEAK 2026: THE OUTPOST 🎯 Register free and earn SPEAK COIN using my referral code ${user.ownReferralCode}:`;
@@ -71,10 +74,12 @@ export default function Dashboard() {
             <span className="text-sm text-gray-400">SPEAK COIN Balance</span>
             <Coins className="h-6 w-6 text-[#E6B800]" />
           </div>
-          <div className="mt-4 font-heading font-extrabold text-5xl gold-text-gradient" data-testid="dashboard-coin-balance">
-            {user.speakCoinBalance}
+          <div className={`mt-4 font-heading font-extrabold text-5xl ${balanceClaimed ? "gold-text-gradient" : "text-[#E6B800]/65"}`} data-testid="dashboard-coin-balance">
+            {ownedBalance}
           </div>
-          <p className="mt-2 text-xs text-gray-500">COIN earned so far</p>
+          <p className="mt-2 text-xs text-gray-500">
+            {balanceClaimed ? "Claimed to wallet" : "Claim to wallet available soon"}
+          </p>
         </div>
 
         {/* profile */}
@@ -111,8 +116,8 @@ export default function Dashboard() {
       <div className="mt-6 glass rounded-2xl p-7 flex flex-wrap items-center justify-between gap-5" data-testid="dashboard-claim-card">
         <div>
           <div className="text-xs uppercase tracking-[0.25em] text-[#E6B800]">SPEAK COIN rewards</div>
-          <h2 className="mt-2 font-heading font-semibold text-xl text-white">Your pending balance is stationed.</h2>
-          <p className="mt-2 text-sm text-gray-400">Connect your wallet to claim when the rewards station opens.</p>
+          <h2 className="mt-2 font-heading font-semibold text-xl text-white">Your SPEAK COIN is yours.</h2>
+          <p className="mt-2 text-sm text-gray-400">Connect your wallet to claim it when the rewards station opens.</p>
         </div>
         <ClaimButton />
       </div>

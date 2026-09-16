@@ -61,7 +61,7 @@ export default function ClaimButton() {
       className="gold-btn rounded-full px-6 py-3 text-sm inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Coins className="h-4 w-4" />}
-      {status.isClaimingActive && !claimed ? "CLAIM YOUR COINS" : "Rewards Stationed (Claiming opens soon)"}
+      {claimed ? "CLAIMED TO WALLET" : status.isClaimingActive ? "CLAIM YOUR COINS" : "Rewards Stationed (Claiming opens soon)"}
     </button>
   );
 }

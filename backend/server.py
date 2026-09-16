@@ -470,7 +470,7 @@ async def create_password(req: CreatePasswordRequest):
     token = create_token(user_id, email, "attendee")
     return {
         "status": "verified",
-        "message": f"You're verified! {initial_reward} SPEAK COIN is pending and ready to claim when Live Claim opens.",
+        "message": f"You're verified! Your {initial_reward} SPEAK COIN balance is ready. Claim it to your wallet when Live Claim opens.",
         "access_token": token,
         "user": {k: v for k, v in user.items() if k != "passwordHash"},
     }
@@ -519,7 +519,7 @@ async def claim_rewards(req: ClaimRewardsRequest, user: dict = Depends(get_curre
 
     pending_amount = int(user.get("pendingSpeakBalance", 0))
     if pending_amount <= 0 or user.get("rewardClaimStatus") == "claimed":
-        raise HTTPException(status_code=409, detail="There are no pending SPEAK rewards to claim.")
+        raise HTTPException(status_code=409, detail="There are no SPEAK rewards available to claim.")
 
     referrer = None
     referral_reward = None
