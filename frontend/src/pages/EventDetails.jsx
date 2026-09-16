@@ -25,7 +25,7 @@ export default function EventDetails() {
         <span className="text-xs uppercase tracking-[0.3em] text-[#E6B800]">Event Details</span>
         <h1 className="mt-3 font-heading font-extrabold text-4xl sm:text-5xl text-white leading-tight">Everything you need for the day</h1>
         <p className="mt-5 text-gray-400 leading-relaxed">
-          A full day of keynotes, tracks and connection at THE OUTPOST. Below is the provisional schedule, venue directions and how the SPEAK COIN reward system works.
+          A full day of keynotes, tracks and connection at SPEAK Conference 2026, themed THE OUTPOST. Below is the provisional schedule, venue directions and how the SPEAK COIN reward system works.
         </p>
       </div>
 

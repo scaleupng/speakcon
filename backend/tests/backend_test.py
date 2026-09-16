@@ -275,16 +275,16 @@ def test_admin_settings_get_and_update(admin_token):
     h = {"Authorization": f"Bearer {admin_token}"}
     r = requests.get(f"{API}/admin/settings", headers=h)
     assert r.status_code == 200
-    orig = r.json()["initialSpeakCoinReward"]
+    orig = r.json()["directSignUpReward"]
 
     r2 = requests.put(f"{API}/admin/settings", headers=h,
-                      json={"initialSpeakCoinReward": orig + 10})
+                      json={"directSignUpReward": orig + 10})
     assert r2.status_code == 200
-    assert r2.json()["initialSpeakCoinReward"] == orig + 10
+    assert r2.json()["directSignUpReward"] == orig + 10
 
     # Restore
     requests.put(f"{API}/admin/settings", headers=h,
-                 json={"initialSpeakCoinReward": orig})
+                 json={"directSignUpReward": orig})
 
 
 def test_admin_export_csv(admin_token):

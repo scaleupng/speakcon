@@ -128,16 +128,53 @@ async def get_current_admin(request: Request) -> dict:
 
 async def get_settings() -> dict:
     s = await db.system_settings.find_one({"id": "global"}, {"_id": 0})
+    defaults = {
+        "id": "global",
+        "directSignUpReward": 500,
+        "referredSignUpReward": 1000,
+        "referrerReward": 2000,
+        "verificationExpiryHours": 4,
+        "resendCooldownSeconds": 60,
+        "isClaimingActive": False,
+    }
+
     if not s:
-        s = {
-            "id": "global",
-            "initialSpeakCoinReward": 500,
-            "referralBonusReward": 2000,
-            "verificationExpiryHours": 4,
-            "resendCooldownSeconds": 60,
-            "isClaimingActive": False,
-        }
+        s = defaults.copy()
         await db.system_settings.insert_one(dict(s))
+    else:
+        # Backward compatibility: migrate older reward names to the canonical ones.
+        legacy_direct = s.get("initialSpeakCoinReward")
+        legacy_referrer = s.get("referralBonusReward")
+        if legacy_direct is not None and s.get("directSignUpReward") is None:
+            s["directSignUpReward"] = legacy_direct
+        if legacy_referrer is not None and s.get("referrerReward") is None:
+            s["referrerReward"] = legacy_referrer
+
+        for key, value in defaults.items():
+            s.setdefault(key, value)
+
+        if s.get("directSignUpReward") is None:
+            s["directSignUpReward"] = defaults["directSignUpReward"]
+        if s.get("referredSignUpReward") is None:
+            s["referredSignUpReward"] = defaults["referredSignUpReward"]
+        if s.get("referrerReward") is None:
+            s["referrerReward"] = defaults["referrerReward"]
+
+        await db.system_settings.update_one(
+            {"id": "global"},
+            {"$set": {
+                "directSignUpReward": int(s["directSignUpReward"]),
+                "referredSignUpReward": int(s["referredSignUpReward"]),
+                "referrerReward": int(s["referrerReward"]),
+                "verificationExpiryHours": int(s.get("verificationExpiryHours", defaults["verificationExpiryHours"])),
+                "resendCooldownSeconds": int(s.get("resendCooldownSeconds", defaults["resendCooldownSeconds"])),
+                "isClaimingActive": bool(s.get("isClaimingActive", defaults["isClaimingActive"])),
+            }, "$unset": {"initialSpeakCoinReward": "", "referralBonusReward": ""}},
+            upsert=True,
+        )
+
+    s.pop("initialSpeakCoinReward", None)
+    s.pop("referralBonusReward", None)
     return s
 
 
@@ -232,6 +269,9 @@ class LoginRequest(BaseModel):
 
 
 class SettingsUpdate(BaseModel):
+    directSignUpReward: Optional[int] = None
+    referredSignUpReward: Optional[int] = None
+    referrerReward: Optional[int] = None
     initialSpeakCoinReward: Optional[int] = None
     referralBonusReward: Optional[int] = None
     verificationExpiryHours: Optional[int] = None
@@ -399,8 +439,11 @@ async def create_password(req: CreatePasswordRequest):
         referral_code = gen_referral_code()
 
     has_referral = bool(pending.get("referralCodeUsed"))
-    initial_reward = 1000 if has_referral else 500
-    referral_bonus = 2000
+    direct_reward = int(settings.get("directSignUpReward", settings.get("initialSpeakCoinReward", 500)))
+    referred_reward = int(settings.get("referredSignUpReward", max(direct_reward, 1000)))
+    referrer_reward = int(settings.get("referrerReward", settings.get("referralBonusReward", 2000)))
+    initial_reward = referred_reward if has_referral else direct_reward
+    referral_bonus = referrer_reward
     user = {
         "id": user_id,
         "firstName": pending["firstName"],
@@ -662,13 +705,16 @@ async def build_registration_rows():
     users = await db.users.find({}, {"_id": 0, "passwordHash": 0}).sort("createdAt", -1).to_list(5000)
     for u in users:
         rc = await db.referrals.count_documents({"referrerId": u["id"]})
+        total_balance = int(u.get("speakCoinBalance", 0)) + int(u.get("pendingSpeakBalance", 0))
         rows.append({
             "firstName": u["firstName"],
             "lastName": u["lastName"],
             "email": u["email"],
             "whatsappNumber": u.get("whatsappNumber"),
             "status": "verified",
-            "speakCoinBalance": u.get("speakCoinBalance", 0),
+            "speakCoinBalance": total_balance,
+            "pendingSpeakBalance": u.get("pendingSpeakBalance", 0),
+            "claimedSpeakBalance": u.get("speakCoinBalance", 0),
             "ownReferralCode": u.get("ownReferralCode"),
             "referredBy": u.get("referredBy"),
             "referralCount": rc,
@@ -735,8 +781,20 @@ async def admin_get_settings(admin: dict = Depends(get_current_admin)):
 @api_router.put("/admin/settings")
 async def admin_update_settings(req: SettingsUpdate, admin: dict = Depends(get_current_admin)):
     updates = {k: v for k, v in req.model_dump().items() if v is not None}
+
+    if "directSignUpReward" not in updates and "initialSpeakCoinReward" in updates:
+        updates["directSignUpReward"] = updates.pop("initialSpeakCoinReward")
+    if "referrerReward" not in updates and "referralBonusReward" in updates:
+        updates["referrerReward"] = updates.pop("referralBonusReward")
+
+    # Remove old duplicate keys from storage completely.
+    if "initialSpeakCoinReward" in updates:
+        updates.pop("initialSpeakCoinReward")
+    if "referralBonusReward" in updates:
+        updates.pop("referralBonusReward")
+
     if updates:
-        await db.system_settings.update_one({"id": "global"}, {"$set": updates}, upsert=True)
+        await db.system_settings.update_one({"id": "global"}, {"$set": updates, "$unset": {"initialSpeakCoinReward": "", "referralBonusReward": ""}}, upsert=True)
     return await get_settings()
 
 

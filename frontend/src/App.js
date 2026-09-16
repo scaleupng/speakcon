@@ -13,7 +13,6 @@ import Verify from "@/pages/Verify";
 import Dashboard from "@/pages/Dashboard";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
-import OutpostControl from "@/pages/OutpostControl";
 import Archive from "@/pages/Archive";
 import Team from "@/pages/Team";
 
@@ -52,7 +51,6 @@ function App() {
                 </Route>
                 <Route path="/admin" element={<AdminLogin />} />
                 <Route path="/admin/dashboard" element={<ProtectedAdmin><AdminDashboard /></ProtectedAdmin>} />
-                <Route path="/admin/outpost-control" element={<ProtectedAdmin><OutpostControl /></ProtectedAdmin>} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </BrowserRouter>

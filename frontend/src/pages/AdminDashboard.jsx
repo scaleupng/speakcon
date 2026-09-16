@@ -39,6 +39,8 @@ export default function AdminDashboard() {
   const [referrals, setReferrals] = useState([]);
   const [settings, setSettings] = useState(null);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [isClaimingActive, setIsClaimingActive] = useState(false);
+  const [savingClaimState, setSavingClaimState] = useState(false);
   const [admins, setAdmins] = useState([]);
   const [newAdmin, setNewAdmin] = useState({ name: "", email: "", password: "" });
   const [addingAdmin, setAddingAdmin] = useState(false);
@@ -54,6 +56,7 @@ export default function AdminDashboard() {
     api.get("/admin/stats").then(({ data }) => setStats(data)).catch(() => {});
     api.get("/admin/settings").then(({ data }) => setSettings(data)).catch(() => {});
     api.get("/admin/registrations").then(({ data }) => setRows(data)).catch(() => {});
+    api.get("/admin/outpost-control").then(({ data }) => setIsClaimingActive(Boolean(data.isClaimingActive))).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -82,15 +85,26 @@ export default function AdminDashboard() {
     setSavingSettings(true);
     try {
       const { data } = await api.put("/admin/settings", {
-        initialSpeakCoinReward: Number(settings.initialSpeakCoinReward),
-        referralBonusReward: Number(settings.referralBonusReward),
+        directSignUpReward: Number(settings.directSignUpReward),
+        referredSignUpReward: Number(settings.referredSignUpReward),
+        referrerReward: Number(settings.referrerReward),
         verificationExpiryHours: Number(settings.verificationExpiryHours),
         resendCooldownSeconds: Number(settings.resendCooldownSeconds),
       });
       setSettings(data);
-      toast.success("Settings saved.");
+      toast.success("Rules saved.");
     } catch (err) { toast.error(formatApiError(err)); }
     finally { setSavingSettings(false); }
+  };
+
+  const saveClaimState = async () => {
+    setSavingClaimState(true);
+    try {
+      const { data } = await api.put("/admin/outpost-control", { isClaimingActive });
+      setIsClaimingActive(Boolean(data.isClaimingActive));
+      toast.success(data.isClaimingActive ? "Live claim is now open." : "Live claim is now closed.");
+    } catch (err) { toast.error(formatApiError(err)); }
+    finally { setSavingClaimState(false); }
   };
 
   const addAdmin = async (e) => {
@@ -271,27 +285,50 @@ export default function AdminDashboard() {
         {tab === "settings" && settings && (
           <div className="mt-8 max-w-2xl fade-up">
             <div className="glass rounded-2xl p-7">
-              <h2 className="font-heading font-semibold text-xl text-white flex items-center gap-2"><Coins className="h-5 w-5 text-[#E6B800]" /> SPEAK COIN Rules</h2>
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <h2 className="font-heading font-semibold text-xl text-white flex items-center gap-2"><Coins className="h-5 w-5 text-[#E6B800]" /> SPEAK COIN Rules</h2>
+                <div className="flex items-center gap-3 rounded-full border border-amber-500/20 bg-[#0E1117] px-3 py-2">
+                  <span className="text-xs uppercase tracking-[0.2em] text-gray-400">Live Claim</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isClaimingActive}
+                    aria-label="Toggle Live Claim"
+                    disabled={savingClaimState}
+                    onClick={() => setIsClaimingActive((active) => !active)}
+                    className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${isClaimingActive ? "bg-emerald-500" : "bg-gray-700"}`}
+                  >
+                    <span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-transform ${isClaimingActive ? "translate-x-5" : "translate-x-1"}`} />
+                  </button>
+                </div>
+              </div>
               <p className="mt-2 text-sm text-gray-400">Changes apply to new verifications only. Attendees already rewarded keep their balances.</p>
               <div className="mt-6 grid sm:grid-cols-2 gap-5">
                 {[
-                  { key: "initialSpeakCoinReward", label: "Initial reward (COIN)" },
-                  { key: "referralBonusReward", label: "Referral bonus (COIN)" },
+                  { key: "directSignUpReward", label: "Direct sign-up reward" },
+                  { key: "referredSignUpReward", label: "Referred sign-up reward" },
+                  { key: "referrerReward", label: "Referrer reward" },
                   { key: "verificationExpiryHours", label: "Verification expiry (hours)" },
                   { key: "resendCooldownSeconds", label: "Resend cooldown (seconds)" },
                 ].map((f) => (
                   <div key={f.key}>
                     <label className="text-sm text-gray-300">{f.label}</label>
-                    <input type="number" min="0" value={settings[f.key]} data-testid={`settings-${f.key}`}
+                    <input type="number" min="0" value={settings[f.key] ?? 0} data-testid={`settings-${f.key}`}
                       onChange={(e) => setSettings({ ...settings, [f.key]: e.target.value })}
                       className="mt-1.5 w-full rounded-xl bg-[#0E1117] border border-amber-500/20 px-4 py-3 text-white focus:outline-none focus:border-amber-500/50" />
                   </div>
                 ))}
               </div>
-              <button onClick={saveSettings} disabled={savingSettings} data-testid="settings-save-btn"
-                className="mt-7 gold-btn rounded-full px-6 py-3 text-sm flex items-center gap-2 disabled:opacity-60">
-                {savingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Rules
-              </button>
+              <div className="mt-7 flex flex-wrap gap-3">
+                <button onClick={saveSettings} disabled={savingSettings} data-testid="settings-save-btn"
+                  className="gold-btn rounded-full px-6 py-3 text-sm flex items-center gap-2 disabled:opacity-60">
+                  {savingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Rules
+                </button>
+                <button onClick={saveClaimState} disabled={savingClaimState} data-testid="settings-live-claim-btn"
+                  className="outline-gold-btn rounded-full px-6 py-3 text-sm flex items-center gap-2 disabled:opacity-60">
+                  {savingClaimState ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Save Claim Status
+                </button>
+              </div>
             </div>
           </div>
         )}
