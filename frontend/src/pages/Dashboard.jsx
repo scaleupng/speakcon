@@ -39,7 +39,7 @@ export default function Dashboard() {
 
   if (!user) return null;
 
-  const ownedBalance = Number(user.speakCoinBalance || 0) + Number(user.pendingSpeakBalance || 0);
+  const ownedBalance = Number(user.totalSpeakBalance ?? (Number(user.speakCoinBalance || 0) + Number(user.pendingSpeakBalance || 0)));
   const balanceClaimed = Number(user.pendingSpeakBalance || 0) === 0;
 
   const referralLink = `${window.location.origin}/register?ref=${user.ownReferralCode}`;
@@ -201,7 +201,7 @@ export default function Dashboard() {
             {ledger.length ? ledger.map((l) => (
               <div key={l.id} className="flex items-center justify-between border-b border-white/5 pb-3 last:border-0">
                 <div>
-                  <div className="text-sm text-white capitalize">{l.type.replace(/_/g, " ")}</div>
+                  <div className="text-sm text-white capitalize">{l.type === "pending_initial_reward" ? "Unclaimed reward" : l.type.replace(/_/g, " ")}</div>
                   <div className="text-xs text-gray-500">{new Date(l.createdAt).toLocaleDateString()}</div>
                 </div>
                 <span className="font-mono font-semibold text-[#E6B800]">+{l.amount}</span>

@@ -607,6 +607,7 @@ async def login(req: LoginRequest, response: Response):
 async def me(user: dict = Depends(get_current_user)):
     referral_count = await db.referrals.count_documents({"referrerId": user["id"]})
     user["referralCount"] = referral_count
+    user["totalSpeakBalance"] = int(user.get("speakCoinBalance", 0)) + int(user.get("pendingSpeakBalance", 0))
     return user
 
 
