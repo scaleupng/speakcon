@@ -666,6 +666,36 @@ async def logout(response: Response):
     return {"status": "ok"}
 
 
+@api_router.get("/leaderboard")
+async def leaderboard():
+    leaders = await db.referrals.aggregate([
+        {"$group": {"_id": "$referrerId", "referralCount": {"$sum": 1}}},
+        {"$sort": {"referralCount": -1, "_id": 1}},
+        {"$limit": 20},
+        {"$lookup": {
+            "from": "users",
+            "localField": "_id",
+            "foreignField": "id",
+            "as": "user",
+        }},
+        {"$unwind": "$user"},
+        {"$project": {
+            "_id": 0,
+            "id": "$user.id",
+            "name": {"$concat": ["$user.firstName", " ", "$user.lastName"]},
+            "referralCount": 1,
+            "totalSpeakBalance": {
+                "$add": [
+                    {"$ifNull": ["$user.speakCoinBalance", 0]},
+                    {"$ifNull": ["$user.pendingSpeakBalance", 0]},
+                ]
+            },
+        }},
+    ]).to_list(20)
+
+    return [dict(leader, rank=index) for index, leader in enumerate(leaders, start=1)]
+
+
 # ----------------------- Admin -----------------------
 @api_router.post("/admin/login")
 async def admin_login(req: LoginRequest, response: Response):

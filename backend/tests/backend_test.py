@@ -256,6 +256,17 @@ def test_admin_stats(admin_token):
     assert d["verifiedAttendees"] >= 2  # A and B
 
 
+def test_public_leaderboard_returns_ranked_referrers():
+    r = requests.get(f"{API}/leaderboard")
+    assert r.status_code == 200
+    data = r.json()
+    assert isinstance(data, list)
+    assert len(data) <= 20
+    assert all({"rank", "id", "name", "referralCount", "totalSpeakBalance"}.issubset(row) for row in data)
+    assert [row["rank"] for row in data] == list(range(1, len(data) + 1))
+    assert all(data[index]["referralCount"] >= data[index + 1]["referralCount"] for index in range(len(data) - 1))
+
+
 def test_admin_registrations_search_and_filter(admin_token):
     h = {"Authorization": f"Bearer {admin_token}"}
     r = requests.get(f"{API}/admin/registrations", headers=h)
