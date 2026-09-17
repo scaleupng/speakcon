@@ -83,6 +83,10 @@ let webpackConfig = {
       webpackConfig.ignoreWarnings = [
         ...(webpackConfig.ignoreWarnings || []),
         { message: /Critical dependency: the request of a dependency is an expression/ },
+        {
+          module: /node_modules[\\/]@walletconnect[\\/]ethereum-provider[\\/]node_modules[\\/]@reown[\\/]/,
+          message: /Failed to parse source map/,
+        },
       ];
 
       // Add ignored patterns to reduce watched directories

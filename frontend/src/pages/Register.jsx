@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import confetti from "canvas-confetti";
 import { toast } from "sonner";
 import { Coins, PartyPopper, ArrowRight, Loader2, Mail, ShieldCheck } from "lucide-react";
-import { useGoogleReCaptcha } from "react-google-recaptcha-v3";
+import { GoogleReCaptchaProvider, useGoogleReCaptcha } from "react-google-recaptcha-v3";
 import { api, formatApiError } from "@/lib/api";
 
 function fireConfetti() {
@@ -17,7 +17,7 @@ function fireConfetti() {
   confetti({ particleCount: 120, spread: 80, origin: { y: 0.4 }, colors });
 }
 
-export default function Register() {
+function RegisterForm() {
   const [searchParams] = useSearchParams();
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", whatsappNumber: "", referralCode: (searchParams.get("ref") || "").toUpperCase() });
   const [loading, setLoading] = useState(false);
@@ -162,5 +162,17 @@ export default function Register() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function Register() {
+  const recaptchaSiteKey = process.env.REACT_APP_RECAPTCHA_SITE_KEY;
+
+  if (!recaptchaSiteKey) return <RegisterForm />;
+
+  return (
+    <GoogleReCaptchaProvider reCaptchaKey={recaptchaSiteKey}>
+      <RegisterForm />
+    </GoogleReCaptchaProvider>
   );
 }
