@@ -1,0 +1,18 @@
+{
+  "name": "speak-token-deploy",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "hardhat run scripts/deploy.js --network bscTestnet"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.12",
+    "source-map": "^0.8.0"
+  }
+}
