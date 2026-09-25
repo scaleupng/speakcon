@@ -56,11 +56,7 @@ export default function Dashboard() {
     // eslint-disable-next-line
   }, []);
 
-  if (!user) return null;
-
-  const ownedBalance = Number(user.totalSpeakBalance ?? (Number(user.speakCoinBalance || 0) + Number(user.pendingSpeakBalance || 0)));
-  const balanceClaimed = Number(user.pendingSpeakBalance || 0) === 0;
-  const walletAddress = privyUser?.wallet?.address || wallets?.[0]?.address || user.walletAddress || null;
+  const walletAddress = privyUser?.wallet?.address || wallets?.[0]?.address || user?.walletAddress || null;
   const activeWallet = wallets?.find((wallet) => wallet.address?.toLowerCase() === walletAddress?.toLowerCase()) || wallets?.[0] || null;
   const isEmbeddedWallet = activeWallet?.walletClientType === "privy" || privyUser?.wallet?.walletClientType === "privy";
   const walletType = isEmbeddedWallet ? "Privy Embedded Wallet" : "External Wallet";
@@ -75,6 +71,11 @@ export default function Dashboard() {
     api.get("/claim-status").then(({ data }) => setGasSponsored(Boolean(data.isGasSponsorshipActive))).catch(() => {});
     return () => { active = false; };
   }, [walletAddress]);
+
+  if (!user) return null;
+
+  const ownedBalance = Number(user.totalSpeakBalance ?? (Number(user.speakCoinBalance || 0) + Number(user.pendingSpeakBalance || 0)));
+  const balanceClaimed = Number(user.pendingSpeakBalance || 0) === 0;
 
   const sendSpeak = async (event) => {
     event.preventDefault();
