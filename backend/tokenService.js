@@ -63,7 +63,15 @@ export async function transferTokens(to, amount) {
  * Transfer the conference reward from the treasury wallet.
  * The treasury wallet signs the transactions and therefore pays BSC gas.
  */
-export async function claimRewards(userAddress, referrerAddress = null, userAmount = null, referrerAmount = null) {
+function buildRewards(userAddress, referrerAddress, userAmount, referrerAmount) {
+  const rewards = [{ address: userAddress, amount: String(userAmount ?? (referrerAddress ? 1000 : 500)) }];
+  if (referrerAddress && Number(referrerAmount ?? 2000) > 0) {
+    rewards.push({ address: referrerAddress, amount: String(referrerAmount ?? 2000) });
+  }
+  return rewards;
+}
+
+export async function sendClaimTransactions(userAddress, referrerAddress = null, userAmount = null, referrerAmount = null) {
   if (!ethers.isAddress(userAddress)) throw new Error("Invalid user wallet address");
   if (referrerAddress && !ethers.isAddress(referrerAddress)) throw new Error("Invalid referrer wallet address");
 
@@ -75,25 +83,32 @@ export async function claimRewards(userAddress, referrerAddress = null, userAmou
 
   const contract = getTokenContract(wallet);
   const decimals = await contract.decimals();
-  const rewards = [{ address: userAddress, amount: String(userAmount ?? (referrerAddress ? 1000 : 500)) }];
-  if (referrerAddress && Number(referrerAmount ?? 2000) > 0) {
-    rewards.push({ address: referrerAddress, amount: String(referrerAmount ?? 2000) });
-  }
+  const rewards = buildRewards(userAddress, referrerAddress, userAmount, referrerAmount);
 
-  const receipts = [];
+  const transactions = [];
   for (const reward of rewards) {
     const transaction = await contract.transfer(
       reward.address,
       ethers.parseUnits(reward.amount, decimals),
     );
-    const receipt = await transaction.wait();
-    receipts.push({ address: reward.address, amount: reward.amount, hash: receipt.hash });
+    transactions.push({ address: reward.address, amount: reward.amount, hash: transaction.hash });
   }
 
-  return { treasuryAddress: signerAddress, receipts };
+  return { treasuryAddress: signerAddress, transactions };
 }
 
-export const processConferenceRewards = claimRewards;
+export async function confirmClaimTransactions(transactions) {
+  const provider = getProvider();
+  const receipts = await Promise.all(transactions.map(async (transaction) => {
+    const receipt = await provider.waitForTransaction(transaction.hash);
+    if (!receipt || receipt.status !== 1) throw new Error(`Transaction failed: ${transaction.hash}`);
+    return { ...transaction, hash: receipt.hash };
+  }));
+  return { receipts };
+}
+
+export const claimRewards = sendClaimTransactions;
+export const processConferenceRewards = sendClaimTransactions;
 
 export async function burnOwnTokens(amount) {
   const contract = getTokenContract();
@@ -130,14 +145,16 @@ export async function getTokenSummary() {
   };
 }
 
-if (process.argv[2] === "--claim-rewards") {
+if (process.argv[2] === "--claim-rewards" || process.argv[2] === "--confirm-claim-rewards") {
   let input = "";
   process.stdin.setEncoding("utf8");
   process.stdin.on("data", (chunk) => { input += chunk; });
   process.stdin.on("end", async () => {
     try {
-      const { userAddress, referrerAddress = null, userAmount = null, referrerAmount = null } = JSON.parse(input);
-      const result = await claimRewards(userAddress, referrerAddress, userAmount, referrerAmount);
+      const payload = JSON.parse(input);
+      const result = process.argv[2] === "--confirm-claim-rewards"
+        ? await confirmClaimTransactions(payload.transactions || [])
+        : await sendClaimTransactions(payload.userAddress, payload.referrerAddress || null, payload.userAmount || null, payload.referrerAmount || null);
       process.stdout.write(JSON.stringify(result));
     } catch (error) {
       process.stderr.write(error instanceof Error ? error.message : String(error));

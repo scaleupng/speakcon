@@ -41,7 +41,7 @@ export default function ClaimButton() {
       await refresh();
       await loadStatus();
       confetti({ particleCount: 140, spread: 75, origin: { y: 0.65 } });
-      toast.success("Your SPEAK COIN has been claimed.");
+      toast.success("Transaction sent. Processing... check back in a moment.");
     } catch (err) {
       toast.error(formatApiError(err));
     } finally {
@@ -50,7 +50,8 @@ export default function ClaimButton() {
   };
 
   const claimed = status.rewardClaimStatus === "claimed" || status.pendingSpeakBalance <= 0;
-  const disabled = loading || claimed;
+  const processing = status.rewardClaimStatus === "processing";
+  const disabled = loading || processing || claimed;
 
   return (
     <button
@@ -61,7 +62,7 @@ export default function ClaimButton() {
       className="gold-btn rounded-full px-6 py-3 text-sm inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Coins className="h-4 w-4" />}
-      {claimed ? "CLAIMED TO WALLET" : status.isClaimingActive ? "CLAIM YOUR COINS" : "Rewards Stationed (Claiming opens soon)"}
+      {claimed ? "CLAIMED TO WALLET" : processing ? "Processing... check back in a moment" : status.isClaimingActive ? "CLAIM YOUR COINS" : "Rewards Stationed (Claiming opens soon)"}
     </button>
   );
 }

@@ -528,6 +528,7 @@ async def run_token_service(
     referrer_address: Optional[str] = None,
     user_amount: int = 500,
     referrer_amount: int = 0,
+    command: str = "--claim-rewards",
 ) -> dict:
     payload = json.dumps({
         "userAddress": user_address,
@@ -536,7 +537,7 @@ async def run_token_service(
         "referrerAmount": referrer_amount,
     })
     process = await asyncio.create_subprocess_exec(
-        "node", str(TOKEN_SERVICE_PATH), "--claim-rewards",
+        "node", str(TOKEN_SERVICE_PATH), command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -545,6 +546,66 @@ async def run_token_service(
     if process.returncode != 0:
         raise RuntimeError(stderr.decode().strip() or "Token transfer failed")
     return json.loads(stdout.decode())
+
+
+async def confirm_token_transactions(transactions: list) -> dict:
+    payload = json.dumps({"transactions": transactions})
+    process = await asyncio.create_subprocess_exec(
+        "node", str(TOKEN_SERVICE_PATH), "--confirm-claim-rewards",
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await process.communicate(payload.encode())
+    if process.returncode != 0:
+        raise RuntimeError(stderr.decode().strip() or "Token confirmation failed")
+    return json.loads(stdout.decode())
+
+
+async def finalize_claim(
+    user_id: str,
+    user_address: str,
+    existing_balance: int,
+    pending_amount: int,
+    referrer: Optional[dict],
+    sent_transactions: list,
+):
+    try:
+        result = await confirm_token_transactions(sent_transactions)
+        transactions = result["receipts"]
+        await db.users.update_one({"id": user_id}, {"$set": {
+            "speakCoinBalance": existing_balance + pending_amount,
+            "pendingSpeakBalance": 0,
+            "rewardClaimStatus": "claimed",
+            "walletAddress": user_address,
+            "rewardTransactions": transactions,
+        }})
+
+        referrer_address = next((item["address"] for item in transactions if item["address"].lower() != user_address.lower()), None)
+        if referrer and referrer_address:
+            referrer_receipt = next(item for item in transactions if item["address"].lower() == referrer_address.lower())
+            referrer_amount = int(referrer_receipt["amount"])
+            await db.users.update_one({"id": referrer["id"]}, {
+                "$inc": {"speakCoinBalance": referrer_amount, "pendingSpeakBalance": -referrer_amount},
+                "$set": {"walletAddress": referrer_address},
+                "$push": {"rewardTransactions": referrer_receipt},
+            })
+            await db.users.update_one(
+                {"id": referrer["id"], "pendingReferralRewards.referredUserId": user_id},
+                {"$set": {"pendingReferralRewards.$.status": "claimed", "pendingReferralRewards.$.txHash": referrer_receipt["hash"]}},
+            )
+
+        for item in transactions:
+            ledger_user_id = user_id if item["address"].lower() == user_address.lower() else (referrer or {}).get("id")
+            if ledger_user_id:
+                await db.coin_ledger.insert_one({
+                    "id": str(uuid.uuid4()), "userId": ledger_user_id, "type": "claim_reward",
+                    "amount": int(item["amount"]), "txHash": item["hash"],
+                    "reason": "SPEAK Conference reward claim", "createdBy": "treasury", "createdAt": iso(now_utc()),
+                })
+    except Exception:
+        await db.users.update_one({"id": user_id}, {"$set": {"rewardClaimStatus": "pending"}})
+        logger.exception("Asynchronous reward claim failed")
 
 
 @api_router.get("/claim-status")
@@ -609,32 +670,15 @@ async def claim_rewards(req: ClaimRewardsRequest, user: dict = Depends(get_curre
             pending_amount,
             referrer_amount,
         )
-        transactions = result["receipts"]
-        await db.users.update_one({"id": user["id"]}, {"$set": {
-            "speakCoinBalance": user.get("speakCoinBalance", 0) + pending_amount,
-            "pendingSpeakBalance": 0,
-            "rewardClaimStatus": "claimed",
-            "walletAddress": req.walletAddress,
-            "rewardTransactions": transactions,
-        }})
-        if referrer_address and referrer:
-            referrer_receipt = next(item for item in transactions if item["address"].lower() == referrer_address.lower())
-            await db.users.update_one({"id": referrer["id"]}, {
-                "$inc": {"speakCoinBalance": referrer_amount, "pendingSpeakBalance": -referrer_amount},
-                "$set": {"walletAddress": referrer_address},
-                "$push": {"rewardTransactions": referrer_receipt},
-            })
-            await db.users.update_one(
-                {"id": referrer["id"], "pendingReferralRewards.referredUserId": user["id"]},
-                {"$set": {"pendingReferralRewards.$.status": "claimed", "pendingReferralRewards.$.txHash": referrer_receipt["hash"]}},
-            )
-        for item in transactions:
-            await db.coin_ledger.insert_one({
-                "id": str(uuid.uuid4()), "userId": user["id"] if item["address"].lower() == req.walletAddress.lower() else referrer["id"],
-                "type": "claim_reward", "amount": int(item["amount"]), "txHash": item["hash"],
-                "reason": "SPEAK Conference reward claim", "createdBy": "treasury", "createdAt": iso(now_utc()),
-            })
-        return {"status": "claimed", "transactions": transactions, "user": {k: v for k, v in user.items() if k != "passwordHash"}}
+        asyncio.create_task(finalize_claim(
+            user["id"], req.walletAddress, int(user.get("speakCoinBalance", 0)),
+            pending_amount, referrer if referrer_address else None, result["transactions"],
+        ))
+        return {
+            "status": "processing",
+            "message": "Transaction sent. Processing... check back in a moment.",
+            "transactions": result["transactions"],
+        }
     except Exception as exc:
         await db.users.update_one({"id": user["id"]}, {"$set": {"rewardClaimStatus": "pending"}})
         logger.exception("Reward claim failed")
