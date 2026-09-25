@@ -136,6 +136,7 @@ async def get_settings() -> dict:
         "verificationExpiryHours": 4,
         "resendCooldownSeconds": 60,
         "isClaimingActive": False,
+        "isGasSponsorshipActive": False,
     }
 
     if not s:
@@ -169,6 +170,7 @@ async def get_settings() -> dict:
                 "verificationExpiryHours": int(s.get("verificationExpiryHours", defaults["verificationExpiryHours"])),
                 "resendCooldownSeconds": int(s.get("resendCooldownSeconds", defaults["resendCooldownSeconds"])),
                 "isClaimingActive": bool(s.get("isClaimingActive", defaults["isClaimingActive"])),
+                "isGasSponsorshipActive": bool(s.get("isGasSponsorshipActive", defaults["isGasSponsorshipActive"])),
             }, "$unset": {"initialSpeakCoinReward": "", "referralBonusReward": ""}},
             upsert=True,
         )
@@ -277,10 +279,16 @@ class SettingsUpdate(BaseModel):
     verificationExpiryHours: Optional[int] = None
     resendCooldownSeconds: Optional[int] = None
     isClaimingActive: Optional[bool] = None
+    isGasSponsorshipActive: Optional[bool] = None
 
 
 class ClaimRewardsRequest(BaseModel):
     walletAddress: str = Field(min_length=42, max_length=42)
+
+
+class SpeakTransferRequest(BaseModel):
+    to: str = Field(min_length=42, max_length=42)
+    amount: float = Field(gt=0, le=1000000)
 
 
 class UpdateWalletAddressRequest(BaseModel):
@@ -613,6 +621,7 @@ async def claim_status(user: dict = Depends(get_current_user)):
     settings = await get_settings()
     return {
         "isClaimingActive": bool(settings.get("isClaimingActive", False)),
+        "isGasSponsorshipActive": bool(settings.get("isGasSponsorshipActive", False)),
         "pendingSpeakBalance": user.get("pendingSpeakBalance", 0),
         "rewardClaimStatus": user.get("rewardClaimStatus", "pending"),
         "rewardTransactions": user.get("rewardTransactions", []),
@@ -712,6 +721,33 @@ async def me(user: dict = Depends(get_current_user)):
 async def my_ledger(user: dict = Depends(get_current_user)):
     entries = await db.coin_ledger.find({"userId": user["id"]}, {"_id": 0}).sort("createdAt", -1).to_list(200)
     return entries
+
+
+@api_router.post("/transfer-speak")
+async def transfer_speak(req: SpeakTransferRequest, user: dict = Depends(get_current_user)):
+    settings = await get_settings()
+    if not settings.get("isGasSponsorshipActive", False):
+        raise HTTPException(status_code=403, detail="Gas sponsorship is currently disabled.")
+    if not req.to.startswith("0x"):
+        raise HTTPException(status_code=422, detail="Enter a valid recipient wallet address.")
+
+    payload = json.dumps({"to": req.to, "amount": req.amount})
+    process = await asyncio.create_subprocess_exec(
+        "node", str(TOKEN_SERVICE_PATH), "--sponsored-transfer",
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await process.communicate(payload.encode())
+    if process.returncode != 0:
+        raise HTTPException(status_code=502, detail=stderr.decode().strip() or "Sponsored transfer failed")
+    result = json.loads(stdout.decode())
+    await db.coin_ledger.insert_one({
+        "id": str(uuid.uuid4()), "userId": user["id"], "type": "send_speak",
+        "amount": -req.amount, "txHash": result["hash"], "to": req.to,
+        "reason": "SPEAK transfer", "createdBy": "treasury", "createdAt": iso(now_utc()),
+    })
+    return {"status": "sent", "message": "Transaction sent.", "transaction": result}
 
 
 @api_router.post("/logout")
@@ -885,19 +921,30 @@ async def admin_update_settings(req: SettingsUpdate, admin: dict = Depends(get_c
 @api_router.get("/admin/outpost-control")
 async def admin_outpost_control(admin: dict = Depends(get_current_admin)):
     settings = await get_settings()
-    return {"isClaimingActive": bool(settings.get("isClaimingActive", False))}
+    return {
+        "isClaimingActive": bool(settings.get("isClaimingActive", False)),
+        "isGasSponsorshipActive": bool(settings.get("isGasSponsorshipActive", False)),
+    }
 
 
 @api_router.put("/admin/outpost-control")
 async def update_admin_outpost_control(req: SettingsUpdate, admin: dict = Depends(get_current_admin)):
-    if req.isClaimingActive is None:
-        raise HTTPException(status_code=422, detail="isClaimingActive is required.")
+    updates = {key: value for key, value in {
+        "isClaimingActive": req.isClaimingActive,
+        "isGasSponsorshipActive": req.isGasSponsorshipActive,
+    }.items() if value is not None}
+    if not updates:
+        raise HTTPException(status_code=422, detail="At least one control setting is required.")
     await db.system_settings.update_one(
         {"id": "global"},
-        {"$set": {"isClaimingActive": req.isClaimingActive}},
+        {"$set": updates},
         upsert=True,
     )
-    return {"isClaimingActive": req.isClaimingActive}
+    settings = await get_settings()
+    return {
+        "isClaimingActive": bool(settings.get("isClaimingActive", False)),
+        "isGasSponsorshipActive": bool(settings.get("isGasSponsorshipActive", False)),
+    }
 
 
 @api_router.get("/admin/admins")

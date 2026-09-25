@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { createPublicClient, createWalletClient, custom, http, parseUnits } from "viem";
+import { bscTestnet } from "viem/chains";
 import {
   Coins, ShieldCheck, Copy, Users, Gift, TrendingUp, User, Clock, Sparkles,
   Ticket, CalendarDays, MapPin, Share2,
@@ -28,11 +30,25 @@ const FacebookIcon = ({ className = "" }) => (
   </svg>
 );
 
+const TOKEN_ADDRESS = process.env.REACT_APP_SPEAK_TOKEN_ADDRESS || "0xFA2b3Aa3Cf30262a38d3E5EC8587B0c9202EFc3a";
+const TOKEN_ABI = [{
+  name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ type: "uint256" }],
+}, {
+  name: "transfer", type: "function", stateMutability: "nonpayable", inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }],
+}];
+
 export default function Dashboard() {
   const { user, refresh } = useAuth();
   const { user: privyUser } = usePrivy();
+  const { exportWallet } = usePrivy();
   const { wallets } = useWallets();
   const [ledger, setLedger] = useState([]);
+  const [liveBalance, setLiveBalance] = useState(null);
+  const [recipient, setRecipient] = useState("");
+  const [sendAmount, setSendAmount] = useState("");
+  const [sending, setSending] = useState(false);
+  const [gasSponsored, setGasSponsored] = useState(false);
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     refresh();
@@ -44,10 +60,89 @@ export default function Dashboard() {
 
   const ownedBalance = Number(user.totalSpeakBalance ?? (Number(user.speakCoinBalance || 0) + Number(user.pendingSpeakBalance || 0)));
   const balanceClaimed = Number(user.pendingSpeakBalance || 0) === 0;
-  const activeWallet = privyUser?.wallet || wallets?.[0] || null;
-  const walletAddress = activeWallet?.address || user.walletAddress || null;
-  const isEmbeddedWallet = activeWallet?.walletClientType === "privy";
+  const walletAddress = privyUser?.wallet?.address || wallets?.[0]?.address || user.walletAddress || null;
+  const activeWallet = wallets?.find((wallet) => wallet.address?.toLowerCase() === walletAddress?.toLowerCase()) || wallets?.[0] || null;
+  const isEmbeddedWallet = activeWallet?.walletClientType === "privy" || privyUser?.wallet?.walletClientType === "privy";
   const walletType = isEmbeddedWallet ? "Privy Embedded Wallet" : "External Wallet";
+
+  useEffect(() => {
+    if (!walletAddress) return undefined;
+    const client = createPublicClient({ chain: bscTestnet, transport: http(process.env.REACT_APP_BSC_RPC_URL || "https://data-seed-prebsc-1-s3.bnbchain.org:8545") });
+    let active = true;
+    client.readContract({ address: TOKEN_ADDRESS, abi: TOKEN_ABI, functionName: "balanceOf", args: [walletAddress] })
+      .then((value) => { if (active) setLiveBalance(Number(value) / 1e18); })
+      .catch(() => { if (active) setLiveBalance(null); });
+    api.get("/claim-status").then(({ data }) => setGasSponsored(Boolean(data.isGasSponsorshipActive))).catch(() => {});
+    return () => { active = false; };
+  }, [walletAddress]);
+
+  const sendSpeak = async (event) => {
+    event.preventDefault();
+    if (!walletAddress || !recipient || !sendAmount || !/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
+      toast.error("Enter a valid recipient address and amount.");
+      return;
+    }
+    setSending(true);
+    try {
+      let result;
+      if (gasSponsored) {
+        result = (await api.post("/transfer-speak", { to: recipient, amount: Number(sendAmount) })).data;
+      } else {
+        const provider = await activeWallet.getEthereumProvider();
+        const client = createWalletClient({ account: walletAddress, chain: bscTestnet, transport: custom(provider) });
+        const hash = await client.writeContract({ address: TOKEN_ADDRESS, abi: TOKEN_ABI, functionName: "transfer", args: [recipient, parseUnits(sendAmount, 18)] });
+        result = { message: "Transaction sent.", transaction: { hash } };
+      }
+      await refresh();
+      await api.get("/my-ledger").then(({ data }) => setLedger(data));
+      setRecipient("");
+      setSendAmount("");
+      toast.success(`${result.message} Check the transaction history shortly.`);
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || error?.message || "Transfer failed.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const backupWallet = async () => {
+    try {
+      if (!exportWallet || !walletAddress) throw new Error("Wallet backup is unavailable.");
+      await exportWallet({ address: walletAddress });
+    } catch (error) {
+      toast.error(error?.message || "Wallet backup was cancelled.");
+    }
+  };
+
+  const scanToPay = async () => {
+    if (!("BarcodeDetector" in window)) {
+      toast.error("QR scanning is not supported by this browser. Paste the address instead.");
+      return;
+    }
+    setScanning(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      const video = document.createElement("video");
+      video.srcObject = stream;
+      await video.play();
+      const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+      const scan = async () => {
+        const codes = await detector.detect(video);
+        if (codes[0]?.rawValue) {
+          const value = codes[0].rawValue.replace(/^ethereum:/, "").split("?")[0];
+          if (/^0x[a-fA-F0-9]{40}$/.test(value)) setRecipient(value);
+          stream.getTracks().forEach((track) => track.stop());
+          setScanning(false);
+          return;
+        }
+        if (scanning) window.requestAnimationFrame(scan);
+      };
+      scan();
+    } catch {
+      setScanning(false);
+      toast.error("Camera access was unavailable.");
+    }
+  };
 
   const addTokenToMetaMask = async () => {
     if (!window.ethereum) {
@@ -95,6 +190,31 @@ export default function Dashboard() {
           Welcome, {user.firstName} 👋
         </h1>
       </div>
+
+      <section className="mt-6 glass rounded-2xl p-7" data-testid="dashboard-wallet-overview">
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <div>
+            <div className="text-xs uppercase tracking-[0.25em] text-[#E6B800]">Wallet overview</div>
+            <h2 className="mt-2 font-heading font-semibold text-xl text-white">Your $SPEAK wallet</h2>
+            <p className="mt-2 break-all font-mono text-xs text-gray-400">{walletAddress || "Connect a wallet to continue"}</p>
+          </div>
+          {walletAddress && <QRCodeSVG value={walletAddress} size={116} bgColor="#ffffff" fgColor="#07080B" />}
+        </div>
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border border-amber-500/15 p-4"><div className="text-xs text-gray-500">Live $SPEAK Balance</div><div className="mt-2 font-heading text-2xl text-[#E6B800]">{liveBalance == null ? "—" : liveBalance.toLocaleString()}</div></div>
+          <div className="rounded-xl border border-amber-500/15 p-4 md:col-span-2"><div className="text-xs text-gray-500">Token contract address</div><div className="mt-2 break-all font-mono text-xs text-gray-300">{TOKEN_ADDRESS}</div></div>
+        </div>
+        <div className="mt-6 border-t border-white/10 pt-6">
+          <div className="flex items-center justify-between gap-4"><h3 className="font-heading font-semibold text-white">Transfer Hub</h3><span className="text-xs text-gray-500">{gasSponsored ? "Treasury pays gas" : "You pay gas"}</span></div>
+          <form onSubmit={sendSpeak} className="mt-4 grid gap-3 md:grid-cols-[1fr_150px_auto_auto]">
+            <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="Recipient 0x..." className="rounded-lg border border-amber-500/20 bg-[#0E1117] px-3 py-3 text-sm text-white" />
+            <input value={sendAmount} onChange={(event) => setSendAmount(event.target.value)} type="number" min="0" step="any" placeholder="Amount" className="rounded-lg border border-amber-500/20 bg-[#0E1117] px-3 py-3 text-sm text-white" />
+            <button type="button" onClick={scanToPay} className="outline-gold-btn rounded-lg px-4 py-3 text-sm">{scanning ? "Scanning..." : "Scan to Pay"}</button>
+            <button type="submit" disabled={sending} className="gold-btn rounded-lg px-4 py-3 text-sm disabled:opacity-60">{sending ? "Sending..." : "Send $SPEAK"}</button>
+          </form>
+          {isEmbeddedWallet && <button type="button" onClick={backupWallet} className="outline-gold-btn mt-4 rounded-lg px-4 py-2 text-xs">Backup Wallet</button>}
+        </div>
+      </section>
 
       {/* top cards */}
       <div className="mt-8 grid md:grid-cols-3 gap-6">

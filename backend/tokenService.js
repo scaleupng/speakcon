@@ -97,6 +97,19 @@ export async function sendClaimTransactions(userAddress, referrerAddress = null,
   return { treasuryAddress: signerAddress, transactions };
 }
 
+export async function sendSponsoredTransfer(to, amount) {
+  if (!ethers.isAddress(to)) throw new Error("Invalid recipient wallet address");
+  const wallet = getWallet();
+  const signerAddress = await wallet.getAddress();
+  if (signerAddress.toLowerCase() !== requireConfig(treasuryAddress, "TREASURY_PUBLIC_ADDRESS").toLowerCase()) {
+    throw new Error("TREASURY_PRIVATE_KEY does not match the configured treasury address");
+  }
+  const contract = getTokenContract(wallet);
+  const decimals = await contract.decimals();
+  const transaction = await contract.transfer(to, ethers.parseUnits(String(amount), decimals));
+  return { address: to, amount: String(amount), hash: transaction.hash };
+}
+
 export async function confirmClaimTransactions(transactions) {
   const provider = getProvider();
   const receipts = await Promise.all(transactions.map(async (transaction) => {
@@ -145,7 +158,7 @@ export async function getTokenSummary() {
   };
 }
 
-if (process.argv[2] === "--claim-rewards" || process.argv[2] === "--confirm-claim-rewards") {
+if (process.argv[2] === "--claim-rewards" || process.argv[2] === "--confirm-claim-rewards" || process.argv[2] === "--sponsored-transfer") {
   let input = "";
   process.stdin.setEncoding("utf8");
   process.stdin.on("data", (chunk) => { input += chunk; });
@@ -154,7 +167,9 @@ if (process.argv[2] === "--claim-rewards" || process.argv[2] === "--confirm-clai
       const payload = JSON.parse(input);
       const result = process.argv[2] === "--confirm-claim-rewards"
         ? await confirmClaimTransactions(payload.transactions || [])
-        : await sendClaimTransactions(payload.userAddress, payload.referrerAddress || null, payload.userAmount || null, payload.referrerAmount || null);
+        : process.argv[2] === "--sponsored-transfer"
+          ? await sendSponsoredTransfer(payload.to, payload.amount)
+          : await sendClaimTransactions(payload.userAddress, payload.referrerAddress || null, payload.userAmount || null, payload.referrerAmount || null);
       process.stdout.write(JSON.stringify(result));
     } catch (error) {
       process.stderr.write(error instanceof Error ? error.message : String(error));
