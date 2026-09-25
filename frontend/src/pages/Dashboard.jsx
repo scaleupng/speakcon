@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import {
   Coins, ShieldCheck, Copy, Users, Gift, TrendingUp, User, Clock, Sparkles,
   Ticket, CalendarDays, MapPin, Share2,
@@ -29,6 +30,8 @@ const FacebookIcon = ({ className = "" }) => (
 
 export default function Dashboard() {
   const { user, refresh } = useAuth();
+  const { user: privyUser } = usePrivy();
+  const { wallets } = useWallets();
   const [ledger, setLedger] = useState([]);
 
   useEffect(() => {
@@ -41,6 +44,33 @@ export default function Dashboard() {
 
   const ownedBalance = Number(user.totalSpeakBalance ?? (Number(user.speakCoinBalance || 0) + Number(user.pendingSpeakBalance || 0)));
   const balanceClaimed = Number(user.pendingSpeakBalance || 0) === 0;
+  const activeWallet = privyUser?.wallet || wallets?.[0] || null;
+  const walletAddress = activeWallet?.address || user.walletAddress || null;
+  const isEmbeddedWallet = activeWallet?.walletClientType === "privy";
+  const walletType = isEmbeddedWallet ? "Privy Embedded Wallet" : "External Wallet";
+
+  const addTokenToMetaMask = async () => {
+    if (!window.ethereum) {
+      toast.error("MetaMask is not installed in this browser.");
+      return;
+    }
+    try {
+      await window.ethereum.request({
+        method: "wallet_watchAsset",
+        params: {
+          type: "ERC20",
+          options: {
+            address: process.env.REACT_APP_SPEAK_TOKEN_ADDRESS || "0xFA2b3Aa3Cf30262a38d3E5EC8587B0c9202EFc3a",
+            symbol: "SPEAK",
+            decimals: 18,
+          },
+        },
+      });
+      toast.success("SPEAK token added to MetaMask.");
+    } catch (error) {
+      if (error?.code !== 4001) toast.error("MetaMask could not add the SPEAK token.");
+    }
+  };
 
   const referralLink = `${window.location.origin}/register?ref=${user.ownReferralCode}`;
 
@@ -80,6 +110,25 @@ export default function Dashboard() {
           <p className="mt-2 text-xs text-gray-500">
             {balanceClaimed ? "Claimed to wallet" : "Claim to wallet available soon"}
           </p>
+          <div className="mt-5 border-t border-white/10 pt-4">
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="text-gray-500">Active wallet</span>
+              <span className="text-[#E6B800]">{walletType}</span>
+            </div>
+            <div className="mt-2 truncate font-mono text-xs text-gray-400" title={walletAddress || "No wallet connected"}>
+              {walletAddress || "No wallet connected"}
+            </div>
+            {!isEmbeddedWallet && walletAddress && (
+              <button
+                type="button"
+                onClick={addTokenToMetaMask}
+                className="outline-gold-btn mt-4 w-full rounded-lg px-3 py-2 text-xs"
+                data-testid="dashboard-add-token-metamask"
+              >
+                Add SPEAK to MetaMask
+              </button>
+            )}
+          </div>
         </div>
 
         {/* profile */}
