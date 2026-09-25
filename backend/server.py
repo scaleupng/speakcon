@@ -592,16 +592,16 @@ async def claim_rewards(req: ClaimRewardsRequest, user: dict = Depends(get_curre
         ), None)
         if not referral_reward:
             referrer = None
-        elif not referrer.get("walletAddress"):
-            raise HTTPException(status_code=409, detail="Your referrer must connect a wallet before this reward can be claimed.")
 
     claim_filter = {"id": user["id"], "pendingSpeakBalance": {"$gt": 0}, "rewardClaimStatus": {"$ne": "processing"}}
     locked = await db.users.update_one(claim_filter, {"$set": {"rewardClaimStatus": "processing", "walletAddress": req.walletAddress}})
     if locked.modified_count != 1:
         raise HTTPException(status_code=409, detail="This reward claim is already being processed.")
 
-    referrer_address = referrer.get("walletAddress") if referrer else None
-    referrer_amount = int(referral_reward["amount"]) if referrer and referral_reward else 0
+    # The claimant can be paid independently. The referrer's bonus stays pending
+    # until that referrer has a wallet address to receive it.
+    referrer_address = referrer.get("walletAddress") if referrer and referrer.get("walletAddress") else None
+    referrer_amount = int(referral_reward["amount"]) if referrer_address and referral_reward else 0
     try:
         result = await run_token_service(
             req.walletAddress,
@@ -617,15 +617,7 @@ async def claim_rewards(req: ClaimRewardsRequest, user: dict = Depends(get_curre
             "walletAddress": req.walletAddress,
             "rewardTransactions": transactions,
         }})
-        own_receipt = next(item for item in transactions if item["address"].lower() == req.walletAddress.lower())
-        claimed_referrals = [
-            {**reward, "status": "claimed", "txHash": own_receipt["hash"]}
-            if reward.get("status") == "pending" else reward
-            for reward in user.get("pendingReferralRewards", [])
-        ]
-        if claimed_referrals:
-            await db.users.update_one({"id": user["id"]}, {"$set": {"pendingReferralRewards": claimed_referrals}})
-        if referrer:
+        if referrer_address and referrer:
             referrer_receipt = next(item for item in transactions if item["address"].lower() == referrer_address.lower())
             await db.users.update_one({"id": referrer["id"]}, {
                 "$inc": {"speakCoinBalance": referrer_amount, "pendingSpeakBalance": -referrer_amount},
