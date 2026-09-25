@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: speakcon-api
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt && npm install --omit=dev
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
