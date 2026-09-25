@@ -4,7 +4,7 @@ import { ethers } from "ethers";
 const rpcUrl = process.env.BSC_RPC_URL;
 const treasuryPrivateKey = process.env.TREASURY_PRIVATE_KEY;
 const tokenAddress = process.env.SPEAK_TOKEN_ADDRESS;
-const treasuryAddress = "0xEEB7d5598502fFf0E821F9c64F8fA51906747c54";
+const treasuryAddress = process.env.TREASURY_PUBLIC_ADDRESS;
 
 function requireConfig(value, name) {
   if (!value) {
@@ -77,7 +77,7 @@ export async function sendClaimTransactions(userAddress, referrerAddress = null,
 
   const wallet = getWallet();
   const signerAddress = await wallet.getAddress();
-  if (signerAddress.toLowerCase() !== treasuryAddress.toLowerCase()) {
+  if (signerAddress.toLowerCase() !== requireConfig(treasuryAddress, "TREASURY_PUBLIC_ADDRESS").toLowerCase()) {
     throw new Error("TREASURY_PRIVATE_KEY does not match the configured treasury address");
   }
 
