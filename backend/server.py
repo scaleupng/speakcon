@@ -283,6 +283,10 @@ class ClaimRewardsRequest(BaseModel):
     walletAddress: str = Field(min_length=42, max_length=42)
 
 
+class UpdateWalletAddressRequest(BaseModel):
+    walletAddress: str = Field(min_length=42, max_length=42)
+
+
 class AddAdminRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     email: EmailStr
@@ -552,6 +556,20 @@ async def claim_status(user: dict = Depends(get_current_user)):
         "rewardClaimStatus": user.get("rewardClaimStatus", "pending"),
         "rewardTransactions": user.get("rewardTransactions", []),
     }
+
+
+@api_router.post("/wallet-address")
+async def update_wallet_address(req: UpdateWalletAddressRequest, user: dict = Depends(get_current_user)):
+    wallet_address = req.walletAddress.strip()
+    if len(wallet_address) != 42 or not wallet_address.startswith("0x"):
+        raise HTTPException(status_code=422, detail="Enter a valid wallet address.")
+
+    existing = await db.users.find_one({"walletAddress": wallet_address})
+    if existing and existing.get("id") != user["id"]:
+        raise HTTPException(status_code=409, detail="This wallet address is already connected to another account.")
+
+    await db.users.update_one({"id": user["id"]}, {"$set": {"walletAddress": wallet_address}})
+    return {"status": "ok", "walletAddress": wallet_address}
 
 
 @api_router.post("/claim-rewards")
