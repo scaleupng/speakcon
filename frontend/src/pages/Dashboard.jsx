@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useCreateWallet, usePrivy, useWallets } from "@privy-io/react-auth";
 import { createPublicClient, createWalletClient, custom, http, parseUnits } from "viem";
 import { bsc } from "viem/chains";
 import {
@@ -39,14 +39,15 @@ const TOKEN_ABI = [{
 
 export default function Dashboard() {
   const { user, refresh } = useAuth();
-  const { user: privyUser } = usePrivy();
-  const { exportWallet } = usePrivy();
+  const { user: privyUser, authenticated, login, exportWallet } = usePrivy();
+  const { createWallet } = useCreateWallet();
   const { wallets } = useWallets();
   const [ledger, setLedger] = useState([]);
   const [liveBalance, setLiveBalance] = useState(null);
   const [recipient, setRecipient] = useState("");
   const [sendAmount, setSendAmount] = useState("");
   const [sending, setSending] = useState(false);
+  const [creatingWallet, setCreatingWallet] = useState(false);
   const [gasSponsored, setGasSponsored] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scannerMessage, setScannerMessage] = useState("");
@@ -59,7 +60,8 @@ export default function Dashboard() {
     // eslint-disable-next-line
   }, []);
 
-  const walletAddress = privyUser?.wallet?.address || wallets?.[0]?.address || user?.walletAddress || null;
+  const embeddedWalletAddress = privyUser?.wallet?.address || wallets?.find((wallet) => wallet.walletClientType === "privy")?.address || null;
+  const walletAddress = embeddedWalletAddress || wallets?.[0]?.address || user?.walletAddress || null;
   const activeWallet = wallets?.find((wallet) => wallet.address?.toLowerCase() === walletAddress?.toLowerCase()) || wallets?.[0] || null;
   const isEmbeddedWallet = activeWallet?.walletClientType === "privy" || privyUser?.wallet?.walletClientType === "privy";
   const walletType = isEmbeddedWallet ? "Privy Embedded Wallet" : "External Wallet";
@@ -121,6 +123,24 @@ export default function Dashboard() {
       await exportWallet({ address: walletAddress });
     } catch (error) {
       toast.error(error?.message || "Wallet backup was cancelled.");
+    }
+  };
+
+  const createOrConnectWallet = async () => {
+    if (!authenticated) {
+      login();
+      return;
+    }
+    setCreatingWallet(true);
+    try {
+      const wallet = await createWallet();
+      await api.post("/wallet-address", { walletAddress: wallet.address });
+      await refresh();
+      toast.success("Your Privy wallet is ready.");
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || error?.message || "Could not create your wallet.");
+    } finally {
+      setCreatingWallet(false);
     }
   };
 
@@ -251,6 +271,7 @@ export default function Dashboard() {
             <div className="text-xs uppercase tracking-[0.25em] text-[#E6B800]">Wallet overview</div>
             <h2 className="mt-2 font-heading font-semibold text-xl text-white">Your $SPEAK wallet</h2>
             <p className="mt-2 break-all font-mono text-xs text-gray-400">{walletAddress || "Connect a wallet to continue"}</p>
+            {!embeddedWalletAddress && !activeWallet && <button type="button" onClick={createOrConnectWallet} disabled={creatingWallet} className="gold-btn mt-4 min-h-12 rounded-lg px-4 py-3 text-sm disabled:opacity-60">{creatingWallet ? "Creating wallet..." : authenticated ? "Create Privy Wallet" : "Connect or Create Wallet"}</button>}
           </div>
           {walletAddress && <QRCodeSVG value={`ethereum:${TOKEN_ADDRESS}@56/transfer?address=${walletAddress}`} size={116} bgColor="#ffffff" fgColor="#07080B" />}
         </div>

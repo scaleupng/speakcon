@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import confetti from "canvas-confetti";
 import { Coins, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
 export default function ClaimButton() {
   const { authenticated, user: privyUser, login } = usePrivy();
+  const { wallets } = useWallets();
   const { refresh } = useAuth();
   const [status, setStatus] = useState({ isClaimingActive: false, pendingSpeakBalance: 0, rewardClaimStatus: "pending" });
   const [loading, setLoading] = useState(false);
@@ -29,7 +30,7 @@ export default function ClaimButton() {
       return;
     }
 
-    const walletAddress = privyUser?.wallet?.address;
+    const walletAddress = privyUser?.wallet?.address || wallets?.[0]?.address;
     if (!walletAddress) {
       toast.error("Connect a wallet before claiming your SPEAK COIN.");
       return;

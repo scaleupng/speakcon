@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect } from "react";
-import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
+import { PrivyProvider, usePrivy, useWallets } from "@privy-io/react-auth";
 import { bsc, bscTestnet } from "viem/chains";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -8,14 +8,15 @@ const WalletContext = createContext(null);
 
 function WalletSync() {
   const { ready, authenticated, user: privyUser } = usePrivy();
+  const { wallets } = useWallets();
   const { user, refresh } = useAuth();
+  const walletAddress = privyUser?.wallet?.address || wallets?.find((wallet) => wallet.walletClientType === "privy")?.address || wallets?.[0]?.address;
 
   useEffect(() => {
-    if (!ready || !authenticated || !user || !privyUser?.wallet?.address) {
+    if (!ready || !authenticated || !user || !walletAddress) {
       return;
     }
 
-    const walletAddress = privyUser.wallet.address;
     const syncWalletAddress = async () => {
       try {
         const existing = user?.walletAddress?.toLowerCase();
@@ -31,7 +32,7 @@ function WalletSync() {
     };
 
     syncWalletAddress();
-  }, [ready, authenticated, user, privyUser?.wallet?.address, refresh]);
+  }, [ready, authenticated, user, walletAddress, refresh]);
 
   return null;
 }
@@ -50,6 +51,9 @@ export function WalletProvider({ children }) {
       config={{
         supportedChains: [bsc, bscTestnet],
         defaultChain: bsc,
+        embeddedWallets: {
+          ethereum: { createOnLogin: "users-without-wallets" },
+        },
       }}
     >
       <WalletSync />
