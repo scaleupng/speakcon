@@ -48,7 +48,6 @@ export default function Dashboard() {
   const [sendAmount, setSendAmount] = useState("");
   const [sending, setSending] = useState(false);
   const [creatingWallet, setCreatingWallet] = useState(false);
-  const [gasSponsored, setGasSponsored] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scannerMessage, setScannerMessage] = useState("");
   const scannerVideoRef = useRef(null);
@@ -60,6 +59,21 @@ export default function Dashboard() {
     // eslint-disable-next-line
   }, []);
 
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        refresh();
+        api.get("/my-ledger").then(({ data }) => setLedger(data)).catch(() => {});
+      }
+    };
+    const interval = window.setInterval(refreshWhenVisible, 5000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [refresh]);
+
   const embeddedWalletAddress = privyUser?.wallet?.address || wallets?.find((wallet) => wallet.walletClientType === "privy")?.address || null;
   const walletAddress = embeddedWalletAddress || wallets?.[0]?.address || user?.walletAddress || null;
   const activeWallet = wallets?.find((wallet) => wallet.address?.toLowerCase() === walletAddress?.toLowerCase()) || wallets?.[0] || null;
@@ -67,13 +81,15 @@ export default function Dashboard() {
   const walletType = isEmbeddedWallet ? "Privy Embedded Wallet" : "External Wallet";
 
   useEffect(() => {
-    if (!walletAddress) return undefined;
+    if (!walletAddress) {
+      setLiveBalance(null);
+      return undefined;
+    }
     const client = createPublicClient({ chain: bsc, transport: http(process.env.REACT_APP_BSC_RPC_URL || "https://bsc-dataseed.binance.org") });
     let active = true;
     client.readContract({ address: TOKEN_ADDRESS, abi: TOKEN_ABI, functionName: "balanceOf", args: [walletAddress] })
       .then((value) => { if (active) setLiveBalance(Number(value) / 1e18); })
       .catch(() => { if (active) setLiveBalance(null); });
-    api.get("/claim-status").then(({ data }) => setGasSponsored(Boolean(data.isGasSponsorshipActive))).catch(() => {});
     return () => { active = false; };
   }, [walletAddress]);
 
@@ -96,15 +112,13 @@ export default function Dashboard() {
     }
     setSending(true);
     try {
-      let result;
-      if (gasSponsored) {
-        result = (await api.post("/transfer-speak", { to: recipient, amount: Number(sendAmount) })).data;
-      } else {
-        const provider = await activeWallet.getEthereumProvider();
-        const client = createWalletClient({ account: walletAddress, chain: bsc, transport: custom(provider) });
-        const hash = await client.writeContract({ address: TOKEN_ADDRESS, abi: TOKEN_ABI, functionName: "transfer", args: [recipient, parseUnits(sendAmount, 18)] });
-        result = { message: "Transaction sent.", transaction: { hash } };
+      if (!activeWallet || typeof activeWallet.getEthereumProvider !== "function") {
+        throw new Error("Your SPEAK account has a saved address but no active wallet session. Reconnect your wallet, then try again.");
       }
+      const provider = await activeWallet.getEthereumProvider();
+      const client = createWalletClient({ account: activeWallet.address, chain: bsc, transport: custom(provider) });
+      const hash = await client.writeContract({ address: TOKEN_ADDRESS, abi: TOKEN_ABI, functionName: "transfer", args: [recipient, parseUnits(sendAmount, 18)] });
+      const result = { message: "Transaction sent.", transaction: { hash } };
       await refresh();
       await api.get("/my-ledger").then(({ data }) => setLedger(data));
       setRecipient("");
@@ -280,7 +294,7 @@ export default function Dashboard() {
           <div className="rounded-xl border border-amber-500/15 p-4 md:col-span-2"><div className="text-xs text-gray-500">Token contract address</div><div className="mt-2 break-all font-mono text-xs text-gray-300">{TOKEN_ADDRESS}</div></div>
         </div>
         <div className="mt-6 border-t border-white/10 pt-6">
-          <div className="flex items-center justify-between gap-4"><h3 className="font-heading font-semibold text-white">Transfer Hub</h3><span className="text-xs text-gray-500">{gasSponsored ? "Treasury pays gas" : "You pay gas"}</span></div>
+          <div className="flex items-center justify-between gap-4"><h3 className="font-heading font-semibold text-white">Transfer Hub</h3><span className="text-right text-xs text-gray-500">You pay gas</span></div>
           <form onSubmit={sendSpeak} className="mt-4 grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_150px_auto_auto]">
             <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="Recipient 0x..." className="box-border min-w-0 w-full min-h-12 rounded-lg border border-amber-500/20 bg-[#0E1117] px-3 py-3 text-sm text-white" />
             <input value={sendAmount} onChange={(event) => setSendAmount(event.target.value)} type="number" min="0" step="any" placeholder="Amount" className="box-border min-w-0 w-full min-h-12 rounded-lg border border-amber-500/20 bg-[#0E1117] px-3 py-3 text-sm text-white" />
@@ -310,6 +324,7 @@ export default function Dashboard() {
           <p className="mt-2 text-xs text-gray-500">
             {balanceClaimed ? "Claimed to wallet" : "Claim to wallet available soon"}
           </p>
+          <p className="mt-1 text-xs text-gray-400">Pending rewards: {Number(user.pendingSpeakBalance || 0).toLocaleString()} SPEAK</p>
           <div className="mt-5 border-t border-white/10 pt-4">
             <div className="flex items-center justify-between gap-3 text-xs">
               <span className="text-gray-500">Active wallet</span>
@@ -392,6 +407,13 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
+        <div className="mt-5 flex items-center gap-4 rounded-xl border border-amber-500/15 bg-[#0E1117] p-4">
+          <QRCodeSVG value={referralLink} size={104} level="M" fgColor="#07080B" bgColor="#ffffff" data-testid="dashboard-referral-qr" />
+          <div>
+            <p className="text-sm font-medium text-white">Attendee referral QR</p>
+            <p className="mt-1 text-xs text-gray-400">Vendors can scan this to find your account at checkout.</p>
+          </div>
+        </div>
 
         {/* Share to earn */}
         <div className="mt-5 pt-5 border-t border-white/5">
@@ -453,8 +475,11 @@ export default function Dashboard() {
                 <div>
                   <div className="text-sm text-white capitalize">{l.type === "pending_initial_reward" ? "Unclaimed reward" : l.type.replace(/_/g, " ")}</div>
                   <div className="text-xs text-gray-500">{new Date(l.createdAt).toLocaleDateString()}</div>
+                  {l.note && <div className="mt-1 text-xs text-gray-400">{l.note}</div>}
                 </div>
-                <span className="font-mono font-semibold text-[#E6B800]">+{l.amount}</span>
+                <span className={`font-mono font-semibold ${Number(l.amount) < 0 ? "text-rose-300" : "text-[#E6B800]"}`}>
+                  {Number(l.amount) > 0 ? "+" : ""}{Number(l.amount).toLocaleString()}
+                </span>
               </div>
             )) : <p className="text-sm text-gray-500">No activity yet.</p>}
           </div>

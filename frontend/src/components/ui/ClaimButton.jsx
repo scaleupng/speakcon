@@ -22,6 +22,15 @@ export default function ClaimButton() {
 
   useEffect(() => {
     loadStatus();
+    const refreshStatus = () => {
+      if (document.visibilityState === "visible") loadStatus();
+    };
+    const interval = window.setInterval(refreshStatus, 5000);
+    document.addEventListener("visibilitychange", refreshStatus);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshStatus);
+    };
   }, []);
 
   const claim = async () => {
@@ -50,9 +59,10 @@ export default function ClaimButton() {
     }
   };
 
-  const claimed = status.rewardClaimStatus === "claimed" || status.pendingSpeakBalance <= 0;
+  const claimed = status.rewardClaimStatus === "claimed";
+  const noPendingRewards = status.pendingSpeakBalance <= 0;
   const processing = status.rewardClaimStatus === "processing";
-  const disabled = loading || processing || claimed;
+  const disabled = loading || processing || claimed || noPendingRewards;
 
   return (
     <button
@@ -63,7 +73,7 @@ export default function ClaimButton() {
       className="gold-btn min-h-12 rounded-full px-6 py-3 text-sm inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Coins className="h-4 w-4" />}
-      {claimed ? "CLAIMED TO WALLET" : processing ? "Processing... check back in a moment" : status.isClaimingActive ? "CLAIM YOUR COINS" : "Rewards Stationed (Claiming opens soon)"}
+      {claimed ? "CLAIMED TO WALLET" : processing ? "Processing... check back in a moment" : noPendingRewards ? "NO PENDING REWARDS" : status.isClaimingActive ? "CLAIM YOUR COINS" : "Rewards Stationed (Claiming opens soon)"}
     </button>
   );
 }

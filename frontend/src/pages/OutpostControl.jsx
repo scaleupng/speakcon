@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Power, ShieldCheck, Zap } from "lucide-react";
+import { Loader2, Power, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiError } from "@/lib/api";
 import { useAdmin } from "@/context/AdminContext";
@@ -7,16 +7,12 @@ import { useAdmin } from "@/context/AdminContext";
 export default function OutpostControl() {
   const { admin } = useAdmin();
   const [isClaimingActive, setIsClaimingActive] = useState(false);
-  const [isGasSponsorshipActive, setIsGasSponsorshipActive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     api.get("/admin/outpost-control")
-      .then(({ data }) => {
-        setIsClaimingActive(Boolean(data.isClaimingActive));
-        setIsGasSponsorshipActive(Boolean(data.isGasSponsorshipActive));
-      })
+      .then(({ data }) => setIsClaimingActive(Boolean(data.isClaimingActive)))
       .catch((err) => toast.error(formatApiError(err)))
       .finally(() => setLoading(false));
   }, []);
@@ -24,10 +20,9 @@ export default function OutpostControl() {
   const save = async () => {
     setSaving(true);
     try {
-      const { data } = await api.put("/admin/outpost-control", { isClaimingActive, isGasSponsorshipActive });
+      const { data } = await api.put("/admin/outpost-control", { isClaimingActive });
       setIsClaimingActive(Boolean(data.isClaimingActive));
-      setIsGasSponsorshipActive(Boolean(data.isGasSponsorshipActive));
-      toast.success("Outpost controls saved.");
+      toast.success(data.isClaimingActive ? "Live Claim is open." : "Live Claim is closed.");
     } catch (err) {
       toast.error(formatApiError(err));
     } finally {
@@ -73,29 +68,6 @@ export default function OutpostControl() {
           </button>
         </section>
 
-        <section className="mt-6 glass rounded-2xl p-7">
-          <div className="flex items-center justify-between gap-6">
-            <div>
-              <h2 className="font-heading font-semibold text-xl text-white">Gas sponsorship</h2>
-              <p className="mt-2 text-sm text-gray-400">When active, the treasury pays gas for dashboard SPEAK transfers.</p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={isGasSponsorshipActive}
-              aria-label="Toggle gas sponsorship"
-              disabled={loading || saving}
-              onClick={() => setIsGasSponsorshipActive((active) => !active)}
-              className={`relative h-8 w-14 shrink-0 rounded-full transition-colors ${isGasSponsorshipActive ? "bg-emerald-500" : "bg-gray-700"}`}
-            >
-              <span className={`absolute top-1 h-6 w-6 rounded-full bg-white transition-transform ${isGasSponsorshipActive ? "translate-x-7" : "translate-x-1"}`} />
-            </button>
-          </div>
-          <div className={`mt-6 flex items-center gap-3 rounded-xl border p-4 text-sm ${isGasSponsorshipActive ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/20 bg-amber-500/5 text-amber-200"}`}>
-            <Zap className="h-4 w-4" />
-            {isGasSponsorshipActive ? "Treasury-sponsored transfers are active." : "Users pay their own transfer gas."}
-          </div>
-        </section>
       </main>
     </div>
   );

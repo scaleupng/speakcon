@@ -136,7 +136,6 @@ async def get_settings() -> dict:
         "verificationExpiryHours": 4,
         "resendCooldownSeconds": 60,
         "isClaimingActive": False,
-        "isGasSponsorshipActive": False,
     }
 
     if not s:
@@ -170,13 +169,13 @@ async def get_settings() -> dict:
                 "verificationExpiryHours": int(s.get("verificationExpiryHours", defaults["verificationExpiryHours"])),
                 "resendCooldownSeconds": int(s.get("resendCooldownSeconds", defaults["resendCooldownSeconds"])),
                 "isClaimingActive": bool(s.get("isClaimingActive", defaults["isClaimingActive"])),
-                "isGasSponsorshipActive": bool(s.get("isGasSponsorshipActive", defaults["isGasSponsorshipActive"])),
-            }, "$unset": {"initialSpeakCoinReward": "", "referralBonusReward": ""}},
+            }, "$unset": {"initialSpeakCoinReward": "", "referralBonusReward": "", "isGasSponsorshipActive": ""}},
             upsert=True,
         )
 
     s.pop("initialSpeakCoinReward", None)
     s.pop("referralBonusReward", None)
+    s.pop("isGasSponsorshipActive", None)
     return s
 
 
@@ -279,16 +278,10 @@ class SettingsUpdate(BaseModel):
     verificationExpiryHours: Optional[int] = None
     resendCooldownSeconds: Optional[int] = None
     isClaimingActive: Optional[bool] = None
-    isGasSponsorshipActive: Optional[bool] = None
 
 
 class ClaimRewardsRequest(BaseModel):
     walletAddress: str = Field(min_length=42, max_length=42)
-
-
-class SpeakTransferRequest(BaseModel):
-    to: str = Field(min_length=42, max_length=42)
-    amount: float = Field(gt=0, le=1000000)
 
 
 class UpdateWalletAddressRequest(BaseModel):
@@ -621,7 +614,6 @@ async def claim_status(user: dict = Depends(get_current_user)):
     settings = await get_settings()
     return {
         "isClaimingActive": bool(settings.get("isClaimingActive", False)),
-        "isGasSponsorshipActive": bool(settings.get("isGasSponsorshipActive", False)),
         "pendingSpeakBalance": user.get("pendingSpeakBalance", 0),
         "rewardClaimStatus": user.get("rewardClaimStatus", "pending"),
         "rewardTransactions": user.get("rewardTransactions", []),
@@ -723,33 +715,6 @@ async def my_ledger(user: dict = Depends(get_current_user)):
     return entries
 
 
-@api_router.post("/transfer-speak")
-async def transfer_speak(req: SpeakTransferRequest, user: dict = Depends(get_current_user)):
-    settings = await get_settings()
-    if not settings.get("isGasSponsorshipActive", False):
-        raise HTTPException(status_code=403, detail="Gas sponsorship is currently disabled.")
-    if not req.to.startswith("0x"):
-        raise HTTPException(status_code=422, detail="Enter a valid recipient wallet address.")
-
-    payload = json.dumps({"to": req.to, "amount": req.amount})
-    process = await asyncio.create_subprocess_exec(
-        "node", str(TOKEN_SERVICE_PATH), "--sponsored-transfer",
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, stderr = await process.communicate(payload.encode())
-    if process.returncode != 0:
-        raise HTTPException(status_code=502, detail=stderr.decode().strip() or "Sponsored transfer failed")
-    result = json.loads(stdout.decode())
-    await db.coin_ledger.insert_one({
-        "id": str(uuid.uuid4()), "userId": user["id"], "type": "send_speak",
-        "amount": -req.amount, "txHash": result["hash"], "to": req.to,
-        "reason": "SPEAK transfer", "createdBy": "treasury", "createdAt": iso(now_utc()),
-    })
-    return {"status": "sent", "message": "Transaction sent.", "transaction": result}
-
-
 @api_router.post("/logout")
 async def logout(response: Response):
     response.delete_cookie("access_token", path="/")
@@ -803,6 +768,71 @@ async def admin_login(req: LoginRequest, response: Response):
 @api_router.get("/admin/me")
 async def admin_me(admin: dict = Depends(get_current_admin)):
     return admin
+
+
+@api_router.get("/admin/vendor/lookup")
+async def vendor_lookup(query: str, admin: dict = Depends(get_current_admin)):
+    query = query.strip()
+    if not query or len(query) > 200:
+        raise HTTPException(status_code=422, detail="Enter a referral code or email.")
+    user = await db.users.find_one(
+        {"$or": [
+            {"ownReferralCode": query.upper()},
+            {"email": query.lower()},
+        ]},
+        {"_id": 0, "id": 1, "firstName": 1, "lastName": 1, "email": 1, "ownReferralCode": 1, "pendingSpeakBalance": 1},
+    )
+    if not user:
+        raise HTTPException(status_code=404, detail="No verified attendee found for that referral code or email.")
+    return {
+        "id": user["id"],
+        "name": f"{user.get('firstName', '')} {user.get('lastName', '')}".strip(),
+        "email": user["email"],
+        "ownReferralCode": user.get("ownReferralCode"),
+        "pendingSpeakBalance": int(user.get("pendingSpeakBalance", 0)),
+    }
+
+
+class VendorChargeRequest(BaseModel):
+    userId: str = Field(min_length=1, max_length=80)
+    amount: int = Field(gt=0, le=1000000)
+    note: str = Field(default="", max_length=300)
+
+
+@api_router.post("/admin/vendor/charge")
+async def vendor_charge(req: VendorChargeRequest, admin: dict = Depends(get_current_admin)):
+    user = await db.users.find_one({"id": req.userId}, {"_id": 0, "id": 1, "pendingSpeakBalance": 1})
+    if not user:
+        raise HTTPException(status_code=404, detail="Attendee not found.")
+
+    updated = await db.users.update_one(
+        {"id": req.userId, "pendingSpeakBalance": {"$gte": req.amount}},
+        {"$inc": {"pendingSpeakBalance": -req.amount}},
+    )
+    if updated.modified_count != 1:
+        current = await db.users.find_one({"id": req.userId}, {"_id": 0, "pendingSpeakBalance": 1})
+        available = int((current or {}).get("pendingSpeakBalance", 0))
+        raise HTTPException(status_code=409, detail=f"Insufficient pending SPEAK balance. Available: {available}.")
+
+    try:
+        await db.coin_ledger.insert_one({
+            "id": str(uuid.uuid4()),
+            "userId": req.userId,
+            "type": "vendor_charge",
+            "amount": -req.amount,
+            "note": req.note.strip(),
+            "reason": req.note.strip() or "Vendor POS charge",
+            "createdBy": admin["id"],
+            "createdAt": iso(now_utc()),
+        })
+    except Exception:
+        await db.users.update_one({"id": req.userId}, {"$inc": {"pendingSpeakBalance": req.amount}})
+        logger.exception("Vendor POS ledger entry failed; balance was restored")
+        raise HTTPException(status_code=500, detail="Could not record the charge. The balance was not deducted.")
+
+    current = await db.users.find_one({"id": req.userId}, {"_id": 0, "pendingSpeakBalance": 1})
+    new_balance = int((current or {}).get("pendingSpeakBalance", 0))
+    return {"status": "charged", "userId": req.userId, "pendingSpeakBalance": new_balance}
 
 
 @api_router.get("/admin/stats")
@@ -921,30 +951,20 @@ async def admin_update_settings(req: SettingsUpdate, admin: dict = Depends(get_c
 @api_router.get("/admin/outpost-control")
 async def admin_outpost_control(admin: dict = Depends(get_current_admin)):
     settings = await get_settings()
-    return {
-        "isClaimingActive": bool(settings.get("isClaimingActive", False)),
-        "isGasSponsorshipActive": bool(settings.get("isGasSponsorshipActive", False)),
-    }
+    return {"isClaimingActive": bool(settings.get("isClaimingActive", False))}
 
 
 @api_router.put("/admin/outpost-control")
 async def update_admin_outpost_control(req: SettingsUpdate, admin: dict = Depends(get_current_admin)):
-    updates = {key: value for key, value in {
-        "isClaimingActive": req.isClaimingActive,
-        "isGasSponsorshipActive": req.isGasSponsorshipActive,
-    }.items() if value is not None}
-    if not updates:
-        raise HTTPException(status_code=422, detail="At least one control setting is required.")
+    if req.isClaimingActive is None:
+        raise HTTPException(status_code=422, detail="isClaimingActive is required.")
     await db.system_settings.update_one(
         {"id": "global"},
-        {"$set": updates},
+        {"$set": {"isClaimingActive": req.isClaimingActive}},
         upsert=True,
     )
     settings = await get_settings()
-    return {
-        "isClaimingActive": bool(settings.get("isClaimingActive", False)),
-        "isGasSponsorshipActive": bool(settings.get("isGasSponsorshipActive", False)),
-    }
+    return {"isClaimingActive": bool(settings.get("isClaimingActive", False))}
 
 
 @api_router.get("/admin/admins")

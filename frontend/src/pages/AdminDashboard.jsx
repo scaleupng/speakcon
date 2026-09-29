@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Users, Clock, Coins, Share2, Search, Download, LogOut, Settings2,
   UserPlus, Save, Loader2, LayoutDashboard, Table2, GitBranch, ShieldCheck,
+  ScanLine, ReceiptText,
 } from "lucide-react";
 import { api, formatApiError, API } from "@/lib/api";
 import { useAdmin } from "@/context/AdminContext";
@@ -44,6 +45,16 @@ export default function AdminDashboard() {
   const [admins, setAdmins] = useState([]);
   const [newAdmin, setNewAdmin] = useState({ name: "", email: "", password: "" });
   const [addingAdmin, setAddingAdmin] = useState(false);
+  const [vendorQuery, setVendorQuery] = useState("");
+  const [vendorUser, setVendorUser] = useState(null);
+  const [vendorAmount, setVendorAmount] = useState("");
+  const [vendorNote, setVendorNote] = useState("");
+  const [vendorSearching, setVendorSearching] = useState(false);
+  const [vendorCharging, setVendorCharging] = useState(false);
+  const [vendorScanning, setVendorScanning] = useState(false);
+  const vendorVideoRef = useRef(null);
+  const vendorStreamRef = useRef(null);
+  const vendorScanActiveRef = useRef(false);
 
   const loadRows = useCallback(async () => {
     try {
@@ -57,6 +68,11 @@ export default function AdminDashboard() {
     api.get("/admin/settings").then(({ data }) => setSettings(data)).catch(() => {});
     api.get("/admin/registrations").then(({ data }) => setRows(data)).catch(() => {});
     api.get("/admin/outpost-control").then(({ data }) => setIsClaimingActive(Boolean(data.isClaimingActive))).catch(() => {});
+  }, []);
+
+  useEffect(() => () => {
+    vendorScanActiveRef.current = false;
+    vendorStreamRef.current?.getTracks().forEach((track) => track.stop());
   }, []);
 
   useEffect(() => {
@@ -102,9 +118,107 @@ export default function AdminDashboard() {
     try {
       const { data } = await api.put("/admin/outpost-control", { isClaimingActive });
       setIsClaimingActive(Boolean(data.isClaimingActive));
-      toast.success(data.isClaimingActive ? "Live claim is now open." : "Live claim is now closed.");
+      toast.success("Live claim setting saved.");
     } catch (err) { toast.error(formatApiError(err)); }
     finally { setSavingClaimState(false); }
+  };
+
+  const lookupVendorUser = async (value = vendorQuery) => {
+    const query = value.trim();
+    if (!query) {
+      toast.error("Scan a referral QR or enter a referral code/email.");
+      return;
+    }
+    setVendorSearching(true);
+    try {
+      const { data } = await api.get("/admin/vendor/lookup", { params: { query } });
+      setVendorUser(data);
+      setVendorQuery(data.ownReferralCode || query);
+      setVendorAmount("");
+      setVendorNote("");
+    } catch (err) {
+      setVendorUser(null);
+      toast.error(formatApiError(err));
+    } finally {
+      setVendorSearching(false);
+    }
+  };
+
+  const stopVendorScanner = () => {
+    vendorScanActiveRef.current = false;
+    vendorStreamRef.current?.getTracks().forEach((track) => track.stop());
+    vendorStreamRef.current = null;
+    if (vendorVideoRef.current) vendorVideoRef.current.srcObject = null;
+    setVendorScanning(false);
+  };
+
+  const startVendorScanner = async () => {
+    if (!("BarcodeDetector" in window) || !navigator.mediaDevices?.getUserMedia || !vendorVideoRef.current) {
+      toast.error("QR scanning is unavailable in this browser. Enter the attendee referral code instead.");
+      return;
+    }
+    vendorScanActiveRef.current = true;
+    setVendorScanning(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" } } });
+      if (!vendorScanActiveRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      vendorStreamRef.current = stream;
+      vendorVideoRef.current.srcObject = stream;
+      await vendorVideoRef.current.play();
+      const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+      const scanFrame = async () => {
+        if (!vendorScanActiveRef.current) return;
+        try {
+          const results = await detector.detect(vendorVideoRef.current);
+          if (results[0]?.rawValue) {
+            const rawValue = results[0].rawValue;
+            let query = rawValue;
+            try {
+              query = new URL(rawValue).searchParams.get("ref") || rawValue;
+            } catch {}
+            stopVendorScanner();
+            setVendorQuery(query.trim());
+            lookupVendorUser(query.trim());
+            return;
+          }
+          window.requestAnimationFrame(scanFrame);
+        } catch {
+          stopVendorScanner();
+          toast.error("Could not decode this QR. Enter the referral code manually.");
+        }
+      };
+      scanFrame();
+    } catch (err) {
+      stopVendorScanner();
+      toast.error(err?.name === "NotAllowedError" ? "Allow camera access to scan the referral QR." : "Camera could not start.");
+    }
+  };
+
+  const chargeVendorUser = async (event) => {
+    event.preventDefault();
+    const amount = Number(vendorAmount);
+    if (!vendorUser || !Number.isSafeInteger(amount) || amount <= 0) {
+      toast.error("Enter a whole-number charge greater than zero.");
+      return;
+    }
+    setVendorCharging(true);
+    try {
+      const { data } = await api.post("/admin/vendor/charge", {
+        userId: vendorUser.id,
+        amount,
+        note: vendorNote.trim(),
+      });
+      setVendorUser((current) => current ? { ...current, pendingSpeakBalance: data.pendingSpeakBalance } : current);
+      setVendorAmount("");
+      toast.success(`Charge recorded. Remaining pending balance: ${data.pendingSpeakBalance} SPEAK.`);
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setVendorCharging(false);
+    }
   };
 
   const addAdmin = async (e) => {
@@ -122,6 +236,7 @@ export default function AdminDashboard() {
 
   const tabs = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
+    { id: "vendor-pos", label: "Vendor POS", icon: ReceiptText },
     { id: "registrations", label: "Registrations", icon: Table2 },
     { id: "referrals", label: "Referrals", icon: GitBranch },
     { id: "settings", label: "Coin Rules", icon: Settings2 },
@@ -185,6 +300,98 @@ export default function AdminDashboard() {
                 )) : <p className="text-sm text-gray-500">No registrations yet. Share the site to get your first attendees.</p>}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* VENDOR POS */}
+        {tab === "vendor-pos" && (
+          <div className="mt-8 max-w-5xl fade-up" data-testid="admin-vendor-pos">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <span className="text-xs uppercase tracking-[0.25em] text-[#E6B800]">Vendor checkout</span>
+                <h2 className="mt-2 font-heading font-bold text-2xl text-white">SPEAK Vendor POS</h2>
+              </div>
+              <span className="text-sm text-gray-400">Scan an attendee referral QR or search manually.</span>
+            </div>
+
+            <section className="mt-6 glass rounded-xl p-5 sm:p-7">
+              <form onSubmit={(event) => { event.preventDefault(); lookupVendorUser(); }} className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+                <input
+                  value={vendorQuery}
+                  onChange={(event) => setVendorQuery(event.target.value)}
+                  placeholder="Referral code or attendee email"
+                  aria-label="Referral code or attendee email"
+                  className="min-h-12 min-w-0 rounded-lg border border-amber-500/20 bg-[#0E1117] px-4 text-sm text-white placeholder:text-gray-500 focus:border-amber-500/50 focus:outline-none"
+                  autoComplete="off"
+                />
+                <button type="button" onClick={startVendorScanner} className="outline-gold-btn min-h-12 rounded-lg px-5 text-sm inline-flex items-center justify-center gap-2">
+                  <ScanLine className="h-4 w-4" /> Scan QR
+                </button>
+                <button type="submit" disabled={vendorSearching} className="gold-btn min-h-12 rounded-lg px-6 text-sm inline-flex items-center justify-center gap-2 disabled:opacity-60">
+                  {vendorSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Find attendee
+                </button>
+              </form>
+
+              <div className={vendorScanning ? "mt-4 rounded-lg border border-amber-500/20 p-3" : "hidden"}>
+                <video ref={vendorVideoRef} autoPlay playsInline muted className="max-h-80 w-full rounded-lg bg-black object-cover" aria-label="Attendee referral QR camera preview" />
+                {vendorScanning && <button type="button" onClick={stopVendorScanner} className="outline-gold-btn mt-3 min-h-12 w-full rounded-lg px-4 text-sm">Close Scanner</button>}
+              </div>
+            </section>
+
+            {vendorUser ? (
+              <section className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.8fr)]">
+                <div className="card-tactical rounded-xl p-5 sm:p-7" data-testid="vendor-attendee-card">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <span className="text-xs uppercase tracking-[0.2em] text-emerald-400">Attendee found</span>
+                      <h3 className="mt-2 break-words font-heading font-semibold text-xl text-white">{vendorUser.name}</h3>
+                      <p className="mt-1 break-all text-sm text-gray-400">{vendorUser.email}</p>
+                      <p className="mt-2 font-mono text-xs text-[#E6B800]">{vendorUser.ownReferralCode}</p>
+                    </div>
+                    <Users className="h-5 w-5 shrink-0 text-[#E6B800]" />
+                  </div>
+                  <div className="mt-6 border-t border-white/10 pt-5">
+                    <p className="text-xs uppercase tracking-wider text-gray-500">Pending $SPEAK balance</p>
+                    <p className="mt-2 font-heading font-bold text-4xl text-[#E6B800]" data-testid="vendor-pending-balance">{vendorUser.pendingSpeakBalance.toLocaleString()}</p>
+                  </div>
+                </div>
+
+                <form onSubmit={chargeVendorUser} className="glass rounded-xl p-5 sm:p-7" data-testid="vendor-charge-form">
+                  <h3 className="font-heading font-semibold text-lg text-white">Charge attendee</h3>
+                  <label className="mt-5 block text-sm text-gray-300" htmlFor="vendor-charge-amount">Amount to Charge</label>
+                  <input
+                    id="vendor-charge-amount"
+                    type="number"
+                    min="1"
+                    max={vendorUser.pendingSpeakBalance}
+                    step="1"
+                    required
+                    value={vendorAmount}
+                    onChange={(event) => setVendorAmount(event.target.value)}
+                    className="mt-2 min-h-14 w-full rounded-lg border border-amber-500/20 bg-[#0E1117] px-4 font-mono text-xl text-white focus:border-amber-500/50 focus:outline-none"
+                  />
+                  <label className="mt-4 block text-sm text-gray-300" htmlFor="vendor-charge-note">Note</label>
+                  <input
+                    id="vendor-charge-note"
+                    maxLength={300}
+                    value={vendorNote}
+                    onChange={(event) => setVendorNote(event.target.value)}
+                    placeholder="Meal, merchandise, or service"
+                    className="mt-2 min-h-12 w-full rounded-lg border border-amber-500/20 bg-[#0E1117] px-4 text-sm text-white placeholder:text-gray-500 focus:border-amber-500/50 focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={vendorCharging || !vendorAmount || Number(vendorAmount) > vendorUser.pendingSpeakBalance}
+                    className="gold-btn mt-6 min-h-14 w-full rounded-lg px-5 text-base font-bold inline-flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {vendorCharging ? <Loader2 className="h-5 w-5 animate-spin" /> : <Coins className="h-5 w-5" />}
+                    {vendorCharging ? "Recording charge..." : `Confirm ${vendorAmount ? `${Number(vendorAmount).toLocaleString()} SPEAK` : "Charge"}`}
+                  </button>
+                </form>
+              </section>
+            ) : (
+              <p className="mt-5 rounded-xl border border-white/10 p-5 text-sm text-gray-500">Find an attendee to review their balance and start checkout.</p>
+            )}
           </div>
         )}
 
@@ -287,19 +494,21 @@ export default function AdminDashboard() {
             <div className="glass rounded-2xl p-7">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <h2 className="font-heading font-semibold text-xl text-white flex items-center gap-2"><Coins className="h-5 w-5 text-[#E6B800]" /> SPEAK COIN Rules</h2>
-                <div className="flex items-center gap-3 rounded-full border border-amber-500/20 bg-[#0E1117] px-3 py-2">
-                  <span className="text-xs uppercase tracking-[0.2em] text-gray-400">Live Claim</span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={isClaimingActive}
-                    aria-label="Toggle Live Claim"
-                    disabled={savingClaimState}
-                    onClick={() => setIsClaimingActive((active) => !active)}
-                    className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${isClaimingActive ? "bg-emerald-500" : "bg-gray-700"}`}
-                  >
-                    <span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-transform ${isClaimingActive ? "translate-x-5" : "translate-x-1"}`} />
-                  </button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-3 rounded-full border border-amber-500/20 bg-[#0E1117] px-3 py-2">
+                    <span className="text-xs uppercase tracking-[0.2em] text-gray-400">Live Claim</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isClaimingActive}
+                      aria-label="Toggle Live Claim"
+                      disabled={savingClaimState}
+                      onClick={() => setIsClaimingActive((active) => !active)}
+                      className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${isClaimingActive ? "bg-emerald-500" : "bg-gray-700"}`}
+                    >
+                      <span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-transform ${isClaimingActive ? "translate-x-5" : "translate-x-1"}`} />
+                    </button>
+                  </div>
                 </div>
               </div>
               <p className="mt-2 text-sm text-gray-400">Changes apply to new verifications only. Attendees already rewarded keep their balances.</p>
@@ -326,7 +535,7 @@ export default function AdminDashboard() {
                 </button>
                 <button onClick={saveClaimState} disabled={savingClaimState} data-testid="settings-live-claim-btn"
                   className="outline-gold-btn rounded-full px-6 py-3 text-sm flex items-center gap-2 disabled:opacity-60">
-                  {savingClaimState ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Save Claim Status
+                  {savingClaimState ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Save Live Claim
                 </button>
               </div>
             </div>
