@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { createPublicClient, createWalletClient, custom, http, parseUnits } from "viem";
-import { bscTestnet } from "viem/chains";
+import { bsc } from "viem/chains";
 import {
   Coins, ShieldCheck, Copy, Users, Gift, TrendingUp, User, Clock, Sparkles,
   Ticket, CalendarDays, MapPin, Share2,
@@ -49,6 +49,9 @@ export default function Dashboard() {
   const [sending, setSending] = useState(false);
   const [gasSponsored, setGasSponsored] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [scannerMessage, setScannerMessage] = useState("");
+  const scannerVideoRef = useRef(null);
+  const scannerActiveRef = useRef(false);
 
   useEffect(() => {
     refresh();
@@ -63,7 +66,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!walletAddress) return undefined;
-    const client = createPublicClient({ chain: bscTestnet, transport: http(process.env.REACT_APP_BSC_RPC_URL || "https://data-seed-prebsc-1-s3.bnbchain.org:8545") });
+    const client = createPublicClient({ chain: bsc, transport: http(process.env.REACT_APP_BSC_RPC_URL || "https://bsc-dataseed.binance.org") });
     let active = true;
     client.readContract({ address: TOKEN_ADDRESS, abi: TOKEN_ABI, functionName: "balanceOf", args: [walletAddress] })
       .then((value) => { if (active) setLiveBalance(Number(value) / 1e18); })
@@ -71,6 +74,12 @@ export default function Dashboard() {
     api.get("/claim-status").then(({ data }) => setGasSponsored(Boolean(data.isGasSponsorshipActive))).catch(() => {});
     return () => { active = false; };
   }, [walletAddress]);
+
+  useEffect(() => () => {
+    scannerActiveRef.current = false;
+    const stream = scannerVideoRef.current?.srcObject;
+    stream?.getTracks().forEach((track) => track.stop());
+  }, []);
 
   if (!user) return null;
 
@@ -90,7 +99,7 @@ export default function Dashboard() {
         result = (await api.post("/transfer-speak", { to: recipient, amount: Number(sendAmount) })).data;
       } else {
         const provider = await activeWallet.getEthereumProvider();
-        const client = createWalletClient({ account: walletAddress, chain: bscTestnet, transport: custom(provider) });
+        const client = createWalletClient({ account: walletAddress, chain: bsc, transport: custom(provider) });
         const hash = await client.writeContract({ address: TOKEN_ADDRESS, abi: TOKEN_ABI, functionName: "transfer", args: [recipient, parseUnits(sendAmount, 18)] });
         result = { message: "Transaction sent.", transaction: { hash } };
       }
@@ -116,42 +125,86 @@ export default function Dashboard() {
   };
 
   const scanToPay = async () => {
-    if (!("BarcodeDetector" in window)) {
+    if (!navigator.mediaDevices?.getUserMedia || !scannerVideoRef.current) {
+      toast.error("Camera scanning is unavailable. Paste the recipient address instead.");
+      return;
+    }
+    const isMobile = navigator.userAgentData?.mobile || /Android|iPhone|iPad/i.test(navigator.userAgent);
+    if (!("BarcodeDetector" in window) && !isMobile) {
       toast.error("QR scanning is not supported by this browser. Paste the address instead.");
       return;
     }
     setScanning(true);
+    setScannerMessage("");
+    scannerActiveRef.current = true;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      const video = document.createElement("video");
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" } } });
+      if (!scannerActiveRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      const video = scannerVideoRef.current;
       video.srcObject = stream;
       await video.play();
+      if (!("BarcodeDetector" in window)) {
+        setScannerMessage("Camera is open, but this browser cannot decode QR codes. Use Chrome on Android or enter the address manually.");
+        return;
+      }
       const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
-      const scan = async () => {
-        const codes = await detector.detect(video);
-        if (codes[0]?.rawValue) {
-          const value = codes[0].rawValue.replace(/^ethereum:/, "").split("?")[0];
-          if (/^0x[a-fA-F0-9]{40}$/.test(value)) setRecipient(value);
-          stream.getTracks().forEach((track) => track.stop());
-          setScanning(false);
-          return;
+      const scanFrame = async () => {
+        if (!scannerActiveRef.current) return;
+        try {
+          const codes = await detector.detect(video);
+          if (codes[0]?.rawValue) {
+            const rawValue = codes[0].rawValue;
+            const uriAddress = rawValue.match(/^ethereum:(0x[a-fA-F0-9]{40})(?:@\d+)?(?:\/transfer\?address=(0x[a-fA-F0-9]{40}))?/i);
+            const address = uriAddress?.[2] || uriAddress?.[1] || rawValue;
+            if (/^0x[a-fA-F0-9]{40}$/.test(address)) {
+              setRecipient(address);
+              closeScanner();
+              toast.success("Recipient address scanned.");
+            } else {
+              closeScanner();
+              toast.error("That QR code does not contain a wallet address.");
+            }
+            return;
+          }
+          window.requestAnimationFrame(scanFrame);
+        } catch {
+          closeScanner();
+          toast.error("The camera could not read this QR code.");
         }
-        if (scanning) window.requestAnimationFrame(scan);
       };
-      scan();
-    } catch {
+      scanFrame();
+    } catch (error) {
+      const stream = scannerVideoRef.current?.srcObject;
+      stream?.getTracks().forEach((track) => track.stop());
+      if (scannerVideoRef.current) scannerVideoRef.current.srcObject = null;
       setScanning(false);
-      toast.error("Camera access was unavailable.");
+      scannerActiveRef.current = false;
+      toast.error(error?.name === "NotAllowedError" ? "Allow camera access to scan a payment QR." : "Camera could not start. Paste the recipient address instead.");
     }
   };
 
+  const closeScanner = () => {
+    scannerActiveRef.current = false;
+    const stream = scannerVideoRef.current?.srcObject;
+    stream?.getTracks().forEach((track) => track.stop());
+    if (scannerVideoRef.current) scannerVideoRef.current.srcObject = null;
+    setScanning(false);
+    setScannerMessage("");
+  };
+
   const addTokenToMetaMask = async () => {
-    if (!window.ethereum) {
-      toast.error("MetaMask is not installed in this browser.");
-      return;
-    }
     try {
-      await window.ethereum.request({
+      const provider = activeWallet?.getEthereumProvider
+        ? await activeWallet.getEthereumProvider()
+        : window.ethereum;
+      if (!provider?.request) {
+        toast.error("This wallet does not support automatic token import. Copy the token address to import it manually.");
+        return;
+      }
+      await provider.request({
         method: "wallet_watchAsset",
         params: {
           type: "ERC20",
@@ -162,9 +215,9 @@ export default function Dashboard() {
           },
         },
       });
-      toast.success("SPEAK token added to MetaMask.");
+      toast.success("SPEAK token added to your wallet.");
     } catch (error) {
-      if (error?.code !== 4001) toast.error("MetaMask could not add the SPEAK token.");
+      if (error?.code !== 4001) toast.error("Your wallet could not add the SPEAK token automatically.");
     }
   };
 
@@ -183,7 +236,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-5 sm:px-8 py-14">
+    <div className="box-border w-full min-w-0 max-w-6xl overflow-x-clip mx-auto px-5 sm:px-8 py-14">
       {/* header */}
       <div className="fade-up">
         <span className="text-xs uppercase tracking-[0.3em] text-[#E6B800]">Attendee Dashboard</span>
@@ -192,14 +245,14 @@ export default function Dashboard() {
         </h1>
       </div>
 
-      <section className="mt-6 glass rounded-2xl p-7" data-testid="dashboard-wallet-overview">
-        <div className="flex flex-wrap items-start justify-between gap-5">
-          <div>
+      <section className="box-border min-w-0 max-w-full mt-6 glass rounded-2xl p-5 sm:p-7" data-testid="dashboard-wallet-overview">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-5">
+          <div className="min-w-0 max-w-full flex-1">
             <div className="text-xs uppercase tracking-[0.25em] text-[#E6B800]">Wallet overview</div>
             <h2 className="mt-2 font-heading font-semibold text-xl text-white">Your $SPEAK wallet</h2>
             <p className="mt-2 break-all font-mono text-xs text-gray-400">{walletAddress || "Connect a wallet to continue"}</p>
           </div>
-          {walletAddress && <QRCodeSVG value={walletAddress} size={116} bgColor="#ffffff" fgColor="#07080B" />}
+          {walletAddress && <QRCodeSVG value={`ethereum:${TOKEN_ADDRESS}@56/transfer?address=${walletAddress}`} size={116} bgColor="#ffffff" fgColor="#07080B" />}
         </div>
         <div className="mt-6 grid gap-4 md:grid-cols-3">
           <div className="rounded-xl border border-amber-500/15 p-4"><div className="text-xs text-gray-500">Live $SPEAK Balance</div><div className="mt-2 font-heading text-2xl text-[#E6B800]">{liveBalance == null ? "—" : liveBalance.toLocaleString()}</div></div>
@@ -207,20 +260,25 @@ export default function Dashboard() {
         </div>
         <div className="mt-6 border-t border-white/10 pt-6">
           <div className="flex items-center justify-between gap-4"><h3 className="font-heading font-semibold text-white">Transfer Hub</h3><span className="text-xs text-gray-500">{gasSponsored ? "Treasury pays gas" : "You pay gas"}</span></div>
-          <form onSubmit={sendSpeak} className="mt-4 grid gap-3 md:grid-cols-[1fr_150px_auto_auto]">
-            <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="Recipient 0x..." className="rounded-lg border border-amber-500/20 bg-[#0E1117] px-3 py-3 text-sm text-white" />
-            <input value={sendAmount} onChange={(event) => setSendAmount(event.target.value)} type="number" min="0" step="any" placeholder="Amount" className="rounded-lg border border-amber-500/20 bg-[#0E1117] px-3 py-3 text-sm text-white" />
-            <button type="button" onClick={scanToPay} className="outline-gold-btn rounded-lg px-4 py-3 text-sm">{scanning ? "Scanning..." : "Scan to Pay"}</button>
-            <button type="submit" disabled={sending} className="gold-btn rounded-lg px-4 py-3 text-sm disabled:opacity-60">{sending ? "Sending..." : "Send $SPEAK"}</button>
+          <form onSubmit={sendSpeak} className="mt-4 grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_150px_auto_auto]">
+            <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="Recipient 0x..." className="box-border min-w-0 w-full min-h-12 rounded-lg border border-amber-500/20 bg-[#0E1117] px-3 py-3 text-sm text-white" />
+            <input value={sendAmount} onChange={(event) => setSendAmount(event.target.value)} type="number" min="0" step="any" placeholder="Amount" className="box-border min-w-0 w-full min-h-12 rounded-lg border border-amber-500/20 bg-[#0E1117] px-3 py-3 text-sm text-white" />
+            <button type="button" onClick={scanToPay} className="outline-gold-btn min-h-12 rounded-lg px-4 py-3 text-sm">Scan to Pay</button>
+            <button type="submit" disabled={sending} className="gold-btn min-h-12 rounded-lg px-4 py-3 text-sm disabled:opacity-60">{sending ? "Sending..." : "Send $SPEAK"}</button>
           </form>
+          <div className={scanning ? "mt-4 max-w-full rounded-xl border border-amber-500/20 p-3" : "hidden"}>
+            <video ref={scannerVideoRef} autoPlay playsInline muted className="max-h-72 w-full rounded-lg bg-black object-cover" aria-label="QR scanner camera preview" />
+            {scannerMessage && <p className="mt-3 text-sm text-amber-200">{scannerMessage}</p>}
+            {scanning && <button type="button" onClick={closeScanner} className="outline-gold-btn mt-3 min-h-12 w-full rounded-lg px-4 py-3 text-sm">Close Scanner</button>}
+          </div>
           {isEmbeddedWallet && <button type="button" onClick={backupWallet} className="outline-gold-btn mt-4 rounded-lg px-4 py-2 text-xs">Backup Wallet</button>}
         </div>
       </section>
 
       {/* top cards */}
-      <div className="mt-8 grid md:grid-cols-3 gap-6">
+      <div className="mt-8 grid min-w-0 max-w-full md:grid-cols-3 gap-6">
         {/* coin balance */}
-        <div className="glass rounded-2xl p-7 radial-gold md:col-span-1" data-testid="dashboard-coin-card">
+        <div className="box-border min-w-0 max-w-full glass rounded-2xl p-5 sm:p-7 radial-gold md:col-span-1" data-testid="dashboard-coin-card">
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-400">SPEAK COIN Balance</span>
             <Coins className="h-6 w-6 text-[#E6B800]" />
@@ -243,32 +301,33 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={addTokenToMetaMask}
-                className="outline-gold-btn mt-4 w-full rounded-lg px-3 py-2 text-xs"
+                className="outline-gold-btn mt-4 min-h-12 w-full rounded-lg px-3 py-2 text-xs"
                 data-testid="dashboard-add-token-metamask"
               >
-                Add SPEAK to MetaMask
+                Add SPEAK to wallet
               </button>
             )}
+            {!isEmbeddedWallet && walletAddress && <p className="mt-3 break-words text-xs leading-5 text-gray-500">Using mobile? Copy the token address above and import it manually into your wallet app (Trust Wallet, MetaMask, etc.).</p>}
           </div>
         </div>
 
         {/* profile */}
-        <div className="card-tactical rounded-2xl p-7 md:col-span-2" data-testid="dashboard-profile-card">
+        <div className="box-border min-w-0 max-w-full card-tactical rounded-2xl p-5 sm:p-7 md:col-span-2" data-testid="dashboard-profile-card">
           <div className="flex items-start justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex min-w-0 items-center gap-4">
               <div className="grid place-items-center h-14 w-14 rounded-full bg-gradient-to-b from-[#1C2230] to-[#0E1117] border border-amber-500/30">
                 <User className="h-6 w-6 text-[#E6B800]" />
               </div>
-              <div>
-                <div className="font-heading font-semibold text-lg text-white">{user.firstName} {user.lastName}</div>
-                <div className="text-sm text-gray-400">{user.email}</div>
+              <div className="min-w-0 max-w-full">
+                <div className="break-words font-heading font-semibold text-lg text-white">{user.firstName} {user.lastName}</div>
+                <div className="break-all text-sm text-gray-400">{user.email}</div>
               </div>
             </div>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 text-xs font-semibold text-emerald-400" data-testid="dashboard-verified-badge">
               <ShieldCheck className="h-3.5 w-3.5" /> Verified
             </span>
           </div>
-          <div className="mt-6 grid grid-cols-2 gap-4">
+          <div className="mt-6 grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 sm:gap-4">
             <div className="rounded-xl border border-amber-500/15 p-4">
               <div className="text-xs text-gray-500 flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> Referrals</div>
               <div className="mt-1 font-heading font-bold text-2xl text-white" data-testid="dashboard-referral-count">{user.referralCount ?? 0}</div>
@@ -283,7 +342,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="mt-6 glass rounded-2xl p-7 flex flex-wrap items-center justify-between gap-5" data-testid="dashboard-claim-card">
+      <div className="box-border min-w-0 max-w-full mt-6 glass rounded-2xl p-5 sm:p-7 flex flex-wrap items-center justify-between gap-5" data-testid="dashboard-claim-card">
         <div>
           <div className="text-xs uppercase tracking-[0.25em] text-[#E6B800]">SPEAK COIN rewards</div>
           <h2 className="mt-2 font-heading font-semibold text-xl text-white">Your SPEAK COIN is yours.</h2>
@@ -293,21 +352,21 @@ export default function Dashboard() {
       </div>
 
       {/* referral */}
-      <div className="mt-6 glass rounded-2xl p-7" data-testid="dashboard-referral-card">
+      <div className="box-border min-w-0 max-w-full mt-6 glass rounded-2xl p-5 sm:p-7" data-testid="dashboard-referral-card">
         <div className="flex items-center gap-2">
           <Gift className="h-5 w-5 text-[#E6B800]" />
           <h2 className="font-heading font-semibold text-lg text-white">Your referral code</h2>
         </div>
         <p className="mt-2 text-sm text-gray-400">Share your code and earn bonus SPEAK COIN when friends register and verify.</p>
-        <div className="mt-5 grid sm:grid-cols-[auto_1fr] gap-4 items-center">
+        <div className="mt-5 grid min-w-0 max-w-full gap-4 items-center sm:grid-cols-[auto_minmax(0,1fr)]">
           <button onClick={() => copy(user.ownReferralCode, "Referral code")} data-testid="dashboard-copy-code"
-            className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-6 py-4 font-mono font-bold text-2xl text-[#E6B800] tracking-widest flex items-center gap-3 hover:bg-amber-500/20 transition-colors">
+            className="box-border min-w-0 max-w-full rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 sm:px-6 py-4 font-mono font-bold text-2xl text-[#E6B800] tracking-widest flex items-center justify-center gap-3 break-all hover:bg-amber-500/20 transition-colors">
             {user.ownReferralCode} <Copy className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-2 rounded-xl bg-[#0E1117] border border-amber-500/15 px-4 py-3">
-            <span className="text-sm text-gray-400 truncate flex-1">{referralLink}</span>
+          <div className="box-border flex min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-xl bg-[#0E1117] border border-amber-500/15 px-3 sm:px-4 py-3">
+            <span className="min-w-0 text-sm text-gray-400 truncate flex-1" title={referralLink}>{referralLink}</span>
             <button onClick={() => copy(referralLink, "Referral link")} data-testid="dashboard-copy-link"
-              className="outline-gold-btn rounded-lg px-3 py-2 text-xs flex items-center gap-1.5 shrink-0">
+              className="outline-gold-btn min-h-11 rounded-lg px-3 py-2 text-xs flex items-center gap-1.5 shrink-0">
               <Copy className="h-3.5 w-3.5" /> Copy link
             </button>
           </div>

@@ -49,7 +49,7 @@ export function WalletProvider({ children }) {
       appId={appId}
       config={{
         supportedChains: [bsc, bscTestnet],
-        defaultChain: bscTestnet,
+        defaultChain: bsc,
       }}
     >
       <WalletSync />

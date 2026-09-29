@@ -59,7 +59,7 @@ export default function ClaimButton() {
       onClick={claim}
       disabled={disabled}
       data-testid="claim-rewards-btn"
-      className="gold-btn rounded-full px-6 py-3 text-sm inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+      className="gold-btn min-h-12 rounded-full px-6 py-3 text-sm inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Coins className="h-4 w-4" />}
       {claimed ? "CLAIMED TO WALLET" : processing ? "Processing... check back in a moment" : status.isClaimingActive ? "CLAIM YOUR COINS" : "Rewards Stationed (Claiming opens soon)"}

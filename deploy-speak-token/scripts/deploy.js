@@ -1,8 +1,19 @@
 const { ethers } = require("hardhat");
 
 async function main() {
-  const expectedAddress = process.env.TREASURY_PUBLIC_ADDRESS.toLowerCase();
-  const derivedAddress = new ethers.Wallet(process.env.TREASURY_PRIVATE_KEY).address.toLowerCase();
+  const privateKey = process.env.TREASURY_PRIVATE_KEY;
+  const configuredTreasury = process.env.TREASURY_PUBLIC_ADDRESS;
+  if (!privateKey || !configuredTreasury) {
+    throw new Error("Set TREASURY_PRIVATE_KEY and TREASURY_PUBLIC_ADDRESS in the deployment environment.");
+  }
+
+  const network = await ethers.provider.getNetwork();
+  if (network.chainId !== 56n) {
+    throw new Error(`Mainnet deployment requires BSC chain ID 56; connected chain ID ${network.chainId}.`);
+  }
+
+  const expectedAddress = configuredTreasury.toLowerCase();
+  const derivedAddress = new ethers.Wallet(privateKey).address.toLowerCase();
 
   if (derivedAddress !== expectedAddress) {
     throw new Error(`TREASURY_PRIVATE_KEY mismatch: expected ${expectedAddress}, derived ${derivedAddress}`);

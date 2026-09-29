@@ -10,5 +10,10 @@ module.exports = {
       accounts: [process.env.TREASURY_PRIVATE_KEY],
       chainId: 97,
     },
+    bscMainnet: {
+      url: process.env.BSC_MAINNET_RPC_URL || process.env.BSC_RPC_URL,
+      accounts: [process.env.TREASURY_PRIVATE_KEY],
+      chainId: 56,
+    },
   },
 };
