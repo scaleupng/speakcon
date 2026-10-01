@@ -204,6 +204,47 @@ async def verify_recaptcha(token: str, expected_action: str = "register") -> boo
         return False
 
 
+async def send_password_reset_email(email: str, first_name: str, link: str) -> bool:
+    html = f"""
+    <div style="background:#07080B;padding:40px 0;font-family:Arial,Helvetica,sans-serif;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        <tr><td align="center">
+          <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#0E1117;border:1px solid rgba(230,184,0,0.25);border-radius:16px;padding:40px;">
+            <tr><td style="color:#E6B800;font-size:14px;letter-spacing:3px;text-transform:uppercase;font-weight:700;">SPEAK Conference &bull; Password Reset</td></tr>
+            <tr><td style="color:#F9FAFB;font-size:26px;font-weight:800;padding-top:12px;">Reset your password, {first_name}</td></tr>
+            <tr><td style="color:#9CA3AF;font-size:15px;line-height:1.7;padding-top:16px;">
+              We received a request to reset the password on your SPEAK account. Click the button below to set a new password. If you didn't request this, you can safely ignore this email &mdash; your current password won't change.
+            </td></tr>
+            <tr><td style="padding-top:28px;">
+              <a href="{link}" style="background:#E6B800;color:#07080B;text-decoration:none;font-weight:700;padding:14px 32px;border-radius:999px;display:inline-block;font-size:15px;">Reset my password</a>
+            </td></tr>
+            <tr><td style="color:#6B7280;font-size:12px;padding-top:28px;line-height:1.6;">
+              This link expires in 60 minutes and can only be used once. If the button doesn't work, paste this URL into your browser:<br>
+              <span style="color:#9CA3AF;word-break:break-all;">{link}</span>
+            </td></tr>
+            <tr><td style="color:#6B7280;font-size:12px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.06);margin-top:24px;">
+              If you didn't request a password reset, please let us know at {SENDER_EMAIL}.
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
+    </div>
+    """
+    params = {
+        "from": f"SPEAK Conference <{SENDER_EMAIL}>",
+        "to": [email],
+        "subject": "Reset your SPEAK password",
+        "html": html,
+    }
+    try:
+        result = await asyncio.to_thread(resend.Emails.send, params)
+        logger.info(f"Resend password reset email sent to {email}: {result}")
+        return True
+    except Exception as e:
+        logger.error(f"Resend password reset send failed for {email}: {e}")
+        return False
+
+
 async def send_verification_email(email: str, first_name: str, link: str) -> bool:
     html = f"""
     <div style="background:#07080B;padding:40px 0;font-family:Arial,Helvetica,sans-serif;">
@@ -291,6 +332,16 @@ class UpdateWalletAddressRequest(BaseModel):
 class AddAdminRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+    recaptchaToken: str = ""
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
     password: str = Field(min_length=8, max_length=128)
 
 
@@ -721,6 +772,133 @@ async def logout(response: Response):
     return {"status": "ok"}
 
 
+@api_router.post("/forgot-password")
+async def forgot_password(req: ForgotPasswordRequest):
+    email = req.email.lower().strip()
+    generic_response = {
+        "status": "ok",
+        "message": "If an account exists for that email, a password reset link has been sent.",
+    }
+
+    recaptcha_ok = await verify_recaptcha(req.recaptchaToken, expected_action="forgot_password")
+    if not recaptcha_ok:
+        if RECAPTCHA_ENFORCE:
+            raise HTTPException(status_code=400, detail="reCAPTCHA verification failed. Please try again.")
+        logger.warning(f"reCAPTCHA not verified for forgot-password {email} (enforcement off) — allowing.")
+
+    user = await db.users.find_one({"email": email, "isVerified": True})
+    if not user or not user.get("passwordHash"):
+        # Don't leak whether the account exists; log and return the generic response.
+        logger.info(f"forgot-password requested for non-existent / unverified / passwordless account: {email}")
+        return generic_response
+
+    # Throttle: reuse the same resendCooldownSeconds setting for abuse protection.
+    settings = await get_settings()
+    cooldown = int(settings.get("resendCooldownSeconds", 60))
+    latest = await db.password_reset_tokens.find_one(
+        {"userId": user["id"], "used": False},
+        sort=[("createdAt", -1)],
+    )
+    if latest:
+        last_created = datetime.fromisoformat(latest["createdAt"])
+        elapsed = (now_utc() - last_created).total_seconds()
+        if elapsed < cooldown:
+            wait = int(cooldown - elapsed)
+            raise HTTPException(status_code=429, detail=f"Please wait {wait} seconds before requesting another reset email.")
+
+    # Invalidate any outstanding unused reset tokens for this user.
+    await db.password_reset_tokens.update_many(
+        {"userId": user["id"], "used": False},
+        {"$set": {"used": True, "invalidatedAt": iso(now_utc()), "invalidationReason": "superseded"}},
+    )
+
+    token = secrets.token_urlsafe(32)
+    expires_at = now_utc() + timedelta(minutes=60)
+    link = f"{PUBLIC_APP_URL}/reset-password/{token}"
+
+    sent = await send_password_reset_email(email, user.get("firstName", ""), link)
+    if not sent and not DEV_EXPOSE_TOKENS:
+        raise HTTPException(status_code=502, detail="We couldn't send the reset email right now. Please try again in a moment.")
+    if not sent:
+        logger.warning(f"Password reset email delivery failed for {email}, continuing (DEV mode).")
+
+    await db.password_reset_tokens.insert_one({
+        "id": str(uuid.uuid4()),
+        "userId": user["id"],
+        "email": email,
+        "token": token,
+        "used": False,
+        "expiresAt": iso(expires_at),
+        "createdAt": iso(now_utc()),
+    })
+    logger.info(f"Password reset link for {email}: {link}")
+
+    resp = dict(generic_response)
+    if DEV_EXPOSE_TOKENS:
+        resp["devResetToken"] = token
+        resp["devResetLink"] = link
+    return resp
+
+
+@api_router.get("/reset-password/{token}")
+async def validate_reset_token(token: str):
+    doc = await db.password_reset_tokens.find_one({"token": token}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="This reset link is invalid or has already been used.")
+    if doc.get("used"):
+        raise HTTPException(status_code=410, detail="This reset link has already been used. Please request a new one.")
+    if datetime.fromisoformat(doc["expiresAt"]) < now_utc():
+        raise HTTPException(status_code=410, detail="This reset link has expired. Please request a new one.")
+    user = await db.users.find_one({"id": doc["userId"]}, {"_id": 0, "email": 1, "firstName": 1})
+    if not user:
+        raise HTTPException(status_code=404, detail="This account no longer exists.")
+    return {"valid": True, "email": user["email"], "firstName": user.get("firstName", "")}
+
+
+@api_router.post("/reset-password")
+async def reset_password(req: ResetPasswordRequest, response: Response):
+    doc = await db.password_reset_tokens.find_one({"token": req.token})
+    if not doc:
+        raise HTTPException(status_code=404, detail="This reset link is invalid or has already been used.")
+    if doc.get("used"):
+        raise HTTPException(status_code=410, detail="This reset link has already been used. Please request a new one.")
+    if datetime.fromisoformat(doc["expiresAt"]) < now_utc():
+        raise HTTPException(status_code=410, detail="This reset link has expired. Please request a new one.")
+
+    # Mark token used atomically so a replay cannot double-use it.
+    consumed = await db.password_reset_tokens.update_one(
+        {"id": doc["id"], "used": False},
+        {"$set": {"used": True, "usedAt": iso(now_utc())}},
+    )
+    if consumed.modified_count != 1:
+        raise HTTPException(status_code=410, detail="This reset link has already been used. Please request a new one.")
+
+    user = await db.users.find_one({"id": doc["userId"]})
+    if not user:
+        raise HTTPException(status_code=404, detail="This account no longer exists.")
+
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {
+            "passwordHash": hash_password(req.password),
+            "passwordUpdatedAt": iso(now_utc()),
+            "lastLoginAt": iso(now_utc()),
+        }},
+    )
+
+    # Invalidate every other outstanding reset token for this user.
+    await db.password_reset_tokens.update_many(
+        {"userId": user["id"], "used": False},
+        {"$set": {"used": True, "invalidatedAt": iso(now_utc()), "invalidationReason": "password_reset"}},
+    )
+
+    token = create_token(user["id"], user["email"], "attendee")
+    response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
+    user.pop("_id", None)
+    user.pop("passwordHash", None)
+    return {"status": "ok", "message": "Your password has been reset. You're now signed in.", "access_token": token, "user": user}
+
+
 @api_router.get("/leaderboard")
 async def leaderboard():
     leaders = await db.referrals.aggregate([
@@ -1041,6 +1219,14 @@ async def cleanup_expired_loop():
             })
             if res.deleted_count:
                 logger.info(f"Purged {res.deleted_count} expired pending registrations")
+            reset_res = await db.password_reset_tokens.delete_many({
+                "$or": [
+                    {"expiresAt": {"$lt": iso(now_utc() - timedelta(days=1))}},
+                    {"used": True, "usedAt": {"$lt": iso(now_utc() - timedelta(days=7))}},
+                ]
+            })
+            if reset_res.deleted_count:
+                logger.info(f"Purged {reset_res.deleted_count} old password reset tokens")
         except Exception as e:
             logger.error(f"Cleanup error: {e}")
         await asyncio.sleep(600)
@@ -1053,6 +1239,8 @@ async def startup():
     await db.admins.create_index("email", unique=True)
     await db.pending_registrations.create_index("verificationToken")
     await db.pending_registrations.create_index("email")
+    await db.password_reset_tokens.create_index("token", unique=True)
+    await db.password_reset_tokens.create_index("userId")
     await get_settings()
     await seed_super_admin()
     asyncio.create_task(cleanup_expired_loop())
