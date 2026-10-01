@@ -1,0 +1,32 @@
+{
+  "summary": "Comprehensive e2e testing of the new forgot-password / reset-password flow. 14/14 backend pytest cases pass, covering: generic 200 for non-existent/unverified emails (no leak), verified-user token issuance with devResetToken+devResetLink, 60s throttle (429), 60-min token TTL via GET validation, bogus token 404, used-token 410, supersede-on-new-request (previous token invalidated), successful reset (user hash updated, old pw fails, new pw works, auto-login JWT + access_token httponly cookie, user without passwordHash), replay 410, short-password 422. Frontend playwright flow verified end-to-end: /forgot-password renders forgot-form, submission transitions to forgot-sent with generic message, forgot-dev-link navigates to /reset-password/{token}, reset-form displays firstName+email, successful submit auto-logs in and redirects to /dashboard which renders user data, bogus token shows reset-error with reset-request-new link, and login page shows login-forgot-link navigating to /forgot-password.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_password_reset.py",
+    "/app/test_reports/pytest/password_reset_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is ~1270 lines — consider splitting into routers (auth, admin, vendor, rewards) for maintainability.",
+    "Password-reset throttle looks at the latest unused token's createdAt — because unused tokens are invalidated on each new request, this correctly enforces 60s cooldown. OK as-is.",
+    "GET /api/reset-password/{token} returns firstName/email publicly — acceptable since the token itself is the secret, but ensure it is never indexable (no SSR, no logs with token). Token is logged at INFO level in server logs (line 834) — in production consider lowering to DEBUG or redacting.",
+    "cleanup_expired_loop purges reset tokens only every 10 minutes based on expiresAt and used; relies on string ISO comparison which works because ISO-8601 UTC strings sort lexicographically — OK.",
+    "No rate-limit on GET /api/reset-password/{token} — a brute-force attacker can enumerate tokens. Mitigated by 32-byte URL-safe entropy (~256 bits) but consider adding an IP-based throttle.",
+    "DEV_EXPOSE_TOKENS leaks reset tokens in API response — ensure this is false in production (currently true in preview .env, which is expected)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_password_reset.py"
+  ],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "100% (all critical selectors + flow)"},
+  "test_credentials": "Admin: admin@speakcon.com / moc.nockaeps@nimda. Test attendees are created dynamically per test using delivered+<label>@resend.dev with recaptchaToken='dev-bypass'.",
+  "seed_data_creation": "Each test creates its own attendee via /api/register -> devVerificationToken -> /api/create-password. No shared seed required.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend forgot/reset-password endpoints and UI pages (/forgot-password, /reset-password/:token, Login forgot link) are fully working. Reset token TTL=60min, throttle reuses resendCooldownSeconds (60s). Successful reset invalidates other outstanding tokens (invalidationReason='password_reset') and a new forgot request supersedes previous (invalidationReason='superseded'). Auto-login after reset sets both JWT in response body and httponly access_token cookie. Note: test suite in test_password_reset.py sleeps 62s to clear cooldown — total runtime ~68s."
+}
