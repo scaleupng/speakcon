@@ -1,34 +1,57 @@
-# SPEAK 2026: THE OUTPOST — PRD
+# SPEAK 2026 — Product Requirements (PRD)
 
-## Original Problem Statement
-Multi-page conference marketing site for SPEAK 2026 ("THE OUTPOST: A Generation Positioned for Impact"; mission "Solving Problems Existing Anywhere Through Knowledge"). Public marketing pages + attendee registration with email verification + attendee dashboard + hidden admin console for managing registrations and SPEAK COIN rules. Gold-on-dark brand, Poppins headings / Inter body. Stack: React + FastAPI + MongoDB, Resend email, Google reCAPTCHA.
+## Original problem statement
+Web-based multi-page conference site for SPEAK 2026. Features include public marketing pages, registration with email verification (Resend), Google reCAPTCHA, an attendee dashboard (SPEAK COIN balance, QR ticket pass, social share buttons), and an admin dashboard to manage registrations. Dark luxury aesthetic. "SPEAK Conference" is the annual brand; "THE OUTPOST" is the 2026 theme.
 
-## Architecture
-- Frontend: React (CRA + craco), react-router, Tailwind, shadcn/ui, sonner, canvas-confetti. Contexts: AuthContext (attendee), AdminContext. API client in `src/lib/api.js` (Bearer token via localStorage: `speak_token`, `speak_admin_token`).
-- Backend: FastAPI single `server.py`, all routes under `/api`. JWT auth (PyJWT), bcrypt hashing. Resend for email (async via `asyncio.to_thread`). reCAPTCHA v3 verify via httpx. Background loop purges expired pending registrations every 10 min.
-- MongoDB collections: users, admins, pending_registrations, coin_ledger, referrals, system_settings. UUID string ids (no ObjectId leakage).
+## Stack
+- Frontend: React 19 + Tailwind + shadcn/ui, Privy wallet, qrcode.react, framer-motion
+- Backend: FastAPI + Motor (MongoDB)
+- Chain: SPEAK ERC-20 (BEP-20) deployed via Hardhat; BSC testnet + mainnet networks configured
+- Integrations: Resend (email), Google reCAPTCHA v2 (checkbox), Privy (embedded wallets)
 
-## User Personas
-- Attendee/registrant, SPEAK organizer, Super admin + invited admins.
+## Repo
+- GitHub: https://github.com/scaleupng/speakcon (branch `main`)
+- Current local head: `1d94d46 Add: change onchain buying to unclaim token buying to avoid gas fee`
 
-## Core Requirements (static)
-- Register (firstName, lastName, email, optional referralCode) + reCAPTCHA → pending registration → verification email → create-password → auto-login → dashboard.
-- Initial SPEAK COIN credited only after verification/password setup. Referral bonus credited to referrer on referred user's verification.
-- Email-only duplicate prevention. Email must send before pending is created (prod). Resend cooldown (60s default). Pending expiry 4h + purge.
-- Hidden /admin with seeded super admin; admins view registrations table (verified/pending/expired), search/filter, CSV export, configure coin rules, add admins (superadmin only).
+## Implemented (confirmed by testing agent — iteration_2.json, 2026-02)
+### Public site
+- Home (looped hero video, SPEAK brand + 2026 theme reframe), Event Details, FAQ, Team, Archive, Leaderboard
+### Auth
+- Register → Resend verification → Create password → auto-login (JWT)
+- Login / Logout
+- /admin hidden route with seeded super admin
+### Attendee dashboard
+- SPEAK coin balances: `pendingSpeakBalance` (unclaimed earnings) + `speakCoinBalance` (claimed to wallet)
+- QR ticket pass, referral share links, Privy wallet (send, export, add-to-wallet)
+- Claim rewards flow (unclaim → claim to on-chain wallet)
+### Admin dashboard
+- Overview with stats
+- **Vendor POS tab** — QR scanner + manual lookup by email/referral code, attendee card, charge form (amount + note), confirm button writes a `vendor_charge` ledger entry and atomically deducts from `pendingSpeakBalance`
+- Registrations table with search, filter, CSV export
+- Referrals, Coin Rules, Admins management
+- Outpost Control page
+### Removed
+- `isGasSponsorshipActive` toggle (unset from DB; no reads)
+- Attendee-to-attendee sponsored transfer endpoints
 
-## Implemented (2026-09-01)
-- Public site: Home (hero, countdown to Oct 1 2026, mission, coin section, venue, speakers placeholders, FAQ teaser, CTA), Event Details (schedule, tracks, venue+map link, coin explainer), FAQ (search + category filter).
-- Registration with confetti + congratulations modal; verification page with password strength; auto-login.
-- Attendee dashboard: coin balance, verified badge, profile, referral code + link (copy), referral count, coin ledger, tasks placeholder.
-- Admin: /admin login (seeded superadmin admin@speakcon.com), dashboard tabs Overview (stats + recent registrations), Registrations (search/status filter/CSV export), Referrals, Coin Rules (editable settings), Admins (list + add).
-- Integrations: Resend (real key, sender onboarding@resend.dev — test mode), Google reCAPTCHA v3 (best-effort; see backlog). DEV_EXPOSE_TOKENS returns dev verification token/link for testing.
-- Verified: backend suite 23/23 pass; full API chain register→verify→create-password(100 COIN)→me→login confirmed.
+## Key endpoints
+- Auth: `/api/register`, `/api/verify/{token}`, `/api/create-password`, `/api/login`, `/api/logout`, `/api/me`
+- Attendee: `/api/claim-status`, `/api/wallet-address`, `/api/claim-rewards`, `/api/my-ledger`, `/api/leaderboard`
+- Admin: `/api/admin/login`, `/api/admin/me`, `/api/admin/stats`, `/api/admin/registrations`, `/api/admin/referrals`, `/api/admin/export`, `/api/admin/settings`, `/api/admin/admins`, `/api/admin/outpost-control`
+- Vendor POS: `GET /api/admin/vendor/lookup?query=...`, `POST /api/admin/vendor/charge {userId, amount, note}`
 
-## Known Config Notes / Backlog
-- P0 (user action): reCAPTCHA v3 site key `6LewSaMt...` is not authorized for the preview domain, so client `grecaptcha.execute` fails. Currently reCAPTCHA runs in BEST-EFFORT mode (`RECAPTCHA_ENFORCE=false`) so registration still works. To enforce: add the deployed site domain to the key's allowed domains in Google reCAPTCHA admin, then set `RECAPTCHA_ENFORCE=true`.
-- Resend is in test/sandbox mode with onboarding@resend.dev — only delivers to the Resend account owner's verified address; use `delivered+label@resend.dev` for test deliveries. Set a verified domain sender for production.
-- P2: manual coin editing deferred; speaker CMS deferred; referral invite sharing beyond code/link deferred.
+## Data models (Mongo)
+- `users`: {id, firstName, lastName, email, passwordHash, isVerified, speakCoinBalance, pendingSpeakBalance, totalSpeakBalance (computed), rewardClaimStatus, walletAddress, ownReferralCode, referredBy, …}
+- `pending_registrations`: {firstName, lastName, email, referralCodeUsed, verificationToken, expiresAt, lastSentAt}
+- `coin_ledger`: {id, userId, type, amount, reason/note, createdAt, createdBy?} — vendor charges use type=`vendor_charge`, amount<0
+- `system_settings`: {directSignUpReward, verificationExpiryHours, resendCooldownSeconds, …}
 
-## Test Credentials
-See /app/memory/test_credentials.md. Super admin: admin@speakcon.com / moc.nockaeps@nimda (route /admin).
+## Pending / open
+- P0 **BSC mainnet token deploy** — waiting on confirmation: (a) BNB funded in treasury `0xC93F1531321115954F27c0365f96130cdAeD5da5`, (b) scope of env rewrite in preview (`REACT_APP_BACKEND_URL`, `MONGO_URL`, `CORS_ORIGINS`), (c) admin seed strategy (idempotent vs env-only)
+- P1 Add preview domain to `CORS_ORIGINS` if preview must keep working against production backend
+- P1 reCAPTCHA v2 key — current key passes tests via dev-bypass; production key must be whitelisted for the live domain
+- P2 Pass download as image, admin camera check-in scanner, past editions section (user backlog)
+
+## Known constraints
+- Node 20 in env; `package.json engines` relaxed from `>=22` to `>=20` for supervisor compatibility
+- Resend sandbox — only `delivered+<label>@resend.dev` recipients succeed in dev

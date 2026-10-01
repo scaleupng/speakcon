@@ -120,7 +120,8 @@ def test_create_password_success(s):
     u = d["user"]
     assert u["email"] == STATE["reg_email"].lower()
     assert u["isVerified"] is True
-    assert u["speakCoinBalance"] == 500
+    assert u["speakCoinBalance"] == 0
+    assert u["pendingSpeakBalance"] >= 1  # initial direct-signup reward (admin-configurable)
     assert u["ownReferralCode"].startswith("SPK")
     STATE["user_a_token"] = d["access_token"]
     STATE["user_a_ref_code"] = u["ownReferralCode"]
@@ -170,7 +171,7 @@ def test_my_ledger_has_initial_reward():
     entries = r.json()
     assert isinstance(entries, list) and entries
     types = [e["type"] for e in entries]
-    assert "initial_reward" in types
+    assert "pending_initial_reward" in types or "initial_reward" in types
     for e in entries:
         assert "_id" not in e
 
@@ -196,7 +197,8 @@ def test_referral_flow_credits_referrer(s):
                       headers={"Authorization": f"Bearer {STATE['user_a_token']}"})
     assert me.status_code == 200
     md = me.json()
-    assert md["speakCoinBalance"] == 2500, md
+    # Referrer bonus goes to pendingSpeakBalance (claim required to move to speakCoinBalance)
+    assert md["pendingSpeakBalance"] > 0, md
     assert md["referralCount"] == 1
 
 
@@ -323,3 +325,124 @@ def test_admin_add_admin_superadmin(admin_token):
     d = r.json()
     assert d["email"] == email.lower()
     assert d["role"] == "admin"
+
+
+
+# ---------------- Vendor POS ----------------
+def test_admin_settings_has_no_gas_sponsorship(admin_token):
+    h = {"Authorization": f"Bearer {admin_token}"}
+    r = requests.get(f"{API}/admin/settings", headers=h)
+    assert r.status_code == 200
+    data = r.json()
+    assert "isGasSponsorshipActive" not in data, f"settings still exposes isGasSponsorshipActive: {data}"
+
+
+def test_sponsor_transfer_endpoints_do_not_exist():
+    for path in ["/transfer", "/sponsor-transfer", "/admin/sponsor-transfer"]:
+        r = requests.post(
+            f"{API}{path}",
+            json={"amount": 1},
+            headers={"Authorization": f"Bearer {STATE['user_a_token']}"},
+        )
+        assert r.status_code == 404, f"{path} unexpectedly returned {r.status_code}"
+
+
+def test_vendor_lookup_requires_admin_auth():
+    r = requests.get(f"{API}/admin/vendor/lookup", params={"query": STATE["user_a_email"]})
+    assert r.status_code in (401, 403)
+    r2 = requests.get(
+        f"{API}/admin/vendor/lookup",
+        params={"query": STATE["user_a_email"]},
+        headers={"Authorization": f"Bearer {STATE['user_a_token']}"},
+    )
+    assert r2.status_code == 403
+
+
+def test_vendor_lookup_by_email(admin_token):
+    h = {"Authorization": f"Bearer {admin_token}"}
+    r = requests.get(f"{API}/admin/vendor/lookup",
+                     params={"query": STATE["user_a_email"]}, headers=h)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["email"] == STATE["user_a_email"].lower()
+    assert d["ownReferralCode"] == STATE["user_a_ref_code"]
+    assert isinstance(d["pendingSpeakBalance"], int)
+    assert d["pendingSpeakBalance"] > 0
+    assert d["name"].strip() != ""
+    assert "id" in d
+    STATE["user_a_id"] = d["id"]
+    STATE["user_a_pending_before"] = d["pendingSpeakBalance"]
+
+
+def test_vendor_lookup_by_referral_code_case_insensitive(admin_token):
+    h = {"Authorization": f"Bearer {admin_token}"}
+    r = requests.get(f"{API}/admin/vendor/lookup",
+                     params={"query": STATE["user_a_ref_code"].lower()}, headers=h)
+    assert r.status_code == 200
+    assert r.json()["ownReferralCode"] == STATE["user_a_ref_code"]
+
+
+def test_vendor_lookup_not_found(admin_token):
+    h = {"Authorization": f"Bearer {admin_token}"}
+    r = requests.get(f"{API}/admin/vendor/lookup",
+                     params={"query": "nonexistent@example.com"}, headers=h)
+    assert r.status_code == 404
+    r2 = requests.get(f"{API}/admin/vendor/lookup",
+                      params={"query": "SPKZZZZZ99"}, headers=h)
+    assert r2.status_code == 404
+
+
+def test_vendor_charge_rejects_zero_and_negative(admin_token):
+    h = {"Authorization": f"Bearer {admin_token}"}
+    for amt in [0, -5]:
+        r = requests.post(f"{API}/admin/vendor/charge", headers=h,
+                          json={"userId": STATE["user_a_id"], "amount": amt, "note": "bad"})
+        assert r.status_code in (400, 422), f"amount={amt} => {r.status_code}"
+
+
+def test_vendor_charge_insufficient_balance(admin_token):
+    h = {"Authorization": f"Bearer {admin_token}"}
+    r = requests.post(f"{API}/admin/vendor/charge", headers=h,
+                      json={"userId": STATE["user_a_id"],
+                            "amount": STATE["user_a_pending_before"] + 1,
+                            "note": "overdraft"})
+    assert r.status_code == 409
+
+
+def test_vendor_charge_success_updates_balance_and_ledger(admin_token):
+    h = {"Authorization": f"Bearer {admin_token}"}
+    charge_amt = 100
+    before = STATE["user_a_pending_before"]
+    r = requests.post(f"{API}/admin/vendor/charge", headers=h,
+                      json={"userId": STATE["user_a_id"],
+                            "amount": charge_amt,
+                            "note": "TEST vendor coffee"})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["status"] == "charged"
+    assert d["pendingSpeakBalance"] == before - charge_amt
+
+    # Verify GET /api/me reflects same balance for the attendee
+    me = requests.get(f"{API}/me",
+                      headers={"Authorization": f"Bearer {STATE['user_a_token']}"})
+    assert me.status_code == 200
+    assert me.json()["pendingSpeakBalance"] == before - charge_amt
+
+    # Verify ledger entry
+    led = requests.get(f"{API}/my-ledger",
+                       headers={"Authorization": f"Bearer {STATE['user_a_token']}"})
+    assert led.status_code == 200
+    entries = led.json()
+    vendor_entries = [e for e in entries if e.get("type") == "vendor_charge"]
+    assert vendor_entries, f"no vendor_charge ledger entry; got types={[e['type'] for e in entries]}"
+    assert vendor_entries[0]["amount"] == -charge_amt
+    for e in entries:
+        assert "_id" not in e
+
+
+def test_vendor_charge_nonexistent_user(admin_token):
+    h = {"Authorization": f"Bearer {admin_token}"}
+    r = requests.post(f"{API}/admin/vendor/charge", headers=h,
+                      json={"userId": "no-such-user-" + uuid.uuid4().hex,
+                            "amount": 10, "note": "x"})
+    assert r.status_code == 404
