@@ -79,6 +79,7 @@ export default function Dashboard() {
   const activeWallet = wallets?.find((wallet) => wallet.address?.toLowerCase() === walletAddress?.toLowerCase()) || wallets?.[0] || null;
   const isEmbeddedWallet = activeWallet?.walletClientType === "privy" || privyUser?.wallet?.walletClientType === "privy";
   const walletType = isEmbeddedWallet ? "Privy Embedded Wallet" : "External Wallet";
+  const previousWallets = Array.isArray(user?.walletHistory) ? user.walletHistory : [];
 
   useEffect(() => {
     if (!walletAddress) {
@@ -148,6 +149,9 @@ export default function Dashboard() {
     setCreatingWallet(true);
     try {
       const wallet = await createWallet();
+      if (wallet?.address && process.env.REACT_APP_TREASURY_PUBLIC_ADDRESS && wallet.address.toLowerCase() === process.env.REACT_APP_TREASURY_PUBLIC_ADDRESS.toLowerCase()) {
+        throw new Error("The treasury wallet cannot be used as a user payout wallet.");
+      }
       await api.post("/wallet-address", { walletAddress: wallet.address });
       await refresh();
       toast.success("Your Privy wallet is ready.");
@@ -155,6 +159,26 @@ export default function Dashboard() {
       toast.error(error?.response?.data?.detail || error?.message || "Could not create your wallet.");
     } finally {
       setCreatingWallet(false);
+    }
+  };
+
+  const disconnectWallet = async () => {
+    try {
+      const { data } = await api.post("/wallet-address/disconnect", { walletAddress: walletAddress || "" });
+      await refresh();
+      toast.success(data.walletAddress ? "Wallet switched." : "Wallet disconnected.");
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || error?.message || "Could not update wallet.");
+    }
+  };
+
+  const switchWallet = async (selectedAddress) => {
+    try {
+      const { data } = await api.post("/wallet-address/select", { walletAddress: selectedAddress });
+      await refresh();
+      toast.success(`Active wallet switched to ${data.walletAddress}.`);
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || error?.message || "Could not switch wallet.");
     }
   };
 
@@ -293,6 +317,30 @@ export default function Dashboard() {
           <div className="rounded-xl border border-amber-500/15 p-4"><div className="text-xs text-gray-500">Live $SPEAK Balance</div><div className="mt-2 font-heading text-2xl text-[#E6B800]">{liveBalance == null ? "—" : liveBalance.toLocaleString()}</div></div>
           <div className="rounded-xl border border-amber-500/15 p-4 md:col-span-2"><div className="text-xs text-gray-500">Token contract address</div><div className="mt-2 break-all font-mono text-xs text-gray-300">{TOKEN_ADDRESS}</div></div>
         </div>
+        {previousWallets.length > 0 && (
+          <div className="mt-6 rounded-xl border border-amber-500/15 bg-[#0E1117] p-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <div className="text-xs uppercase tracking-[0.22em] text-gray-500">Connected wallets</div>
+                <div className="mt-2 text-sm text-white">Previous addresses</div>
+              </div>
+              <button type="button" onClick={disconnectWallet} className="outline-gold-btn rounded-lg px-3 py-2 text-xs">Disconnect current wallet</button>
+            </div>
+            <div className="mt-3 space-y-2">
+              {previousWallets.map((wallet) => (
+                <div key={`${wallet.address}-${wallet.connectedAt}`} className="flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-black/10 px-3 py-2">
+                  <span className="font-mono text-xs text-gray-300 break-all">{wallet.address}</span>
+                  <div className="flex items-center gap-2">
+                    {wallet.address.toLowerCase() === (walletAddress || "").toLowerCase() && <span className="text-[10px] uppercase tracking-[0.18em] text-[#E6B800]">Active</span>}
+                    {wallet.address.toLowerCase() !== (walletAddress || "").toLowerCase() && (
+                      <button type="button" onClick={() => switchWallet(wallet.address)} className="outline-gold-btn rounded-lg px-2.5 py-1.5 text-[10px] uppercase tracking-[0.12em]">Use this wallet</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="mt-6 border-t border-white/10 pt-6">
           <div className="flex items-center justify-between gap-4"><h3 className="font-heading font-semibold text-white">Transfer Hub</h3><span className="text-right text-xs text-gray-500">You pay gas</span></div>
           <form onSubmit={sendSpeak} className="mt-4 grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_150px_auto_auto]">

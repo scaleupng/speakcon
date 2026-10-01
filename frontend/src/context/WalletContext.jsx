@@ -24,6 +24,11 @@ function WalletSync() {
           return;
         }
 
+        const treasuryAddress = process.env.REACT_APP_TREASURY_PUBLIC_ADDRESS || "";
+        if (treasuryAddress && walletAddress.toLowerCase() === treasuryAddress.toLowerCase()) {
+          return;
+        }
+
         await api.post("/wallet-address", { walletAddress });
         await refresh();
       } catch (error) {

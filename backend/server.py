@@ -36,6 +36,7 @@ RECAPTCHA_SECRET_KEY = os.environ['RECAPTCHA_SECRET_KEY']
 RECAPTCHA_ENFORCE = os.environ.get('RECAPTCHA_ENFORCE', 'false').lower() == 'true'
 PUBLIC_APP_URL = os.environ.get('PUBLIC_APP_URL', 'http://localhost:3000')
 DEV_EXPOSE_TOKENS = os.environ.get('DEV_EXPOSE_TOKENS', 'false').lower() == 'true'
+TREASURY_PUBLIC_ADDRESS = os.environ.get('TREASURY_PUBLIC_ADDRESS', '').strip().lower()
 TOKEN_SERVICE_PATH = ROOT_DIR / 'tokenService.js'
 
 resend.api_key = RESEND_API_KEY
@@ -89,6 +90,21 @@ def decode_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Session expired. Please log in again.")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid authentication token.")
+
+
+def normalize_wallet_address(address: Optional[str]) -> Optional[str]:
+    if not address:
+        return None
+    value = address.strip()
+    if len(value) != 42 or not value.startswith("0x"):
+        return None
+    return value.lower()
+
+
+def is_treasury_wallet_address(address: Optional[str]) -> bool:
+    if not TREASURY_PUBLIC_ADDRESS:
+        return False
+    return normalize_wallet_address(address) == TREASURY_PUBLIC_ADDRESS.lower()
 
 
 def bearer_token(request: Request) -> Optional[str]:
@@ -673,16 +689,70 @@ async def claim_status(user: dict = Depends(get_current_user)):
 
 @api_router.post("/wallet-address")
 async def update_wallet_address(req: UpdateWalletAddressRequest, user: dict = Depends(get_current_user)):
-    wallet_address = req.walletAddress.strip()
-    if len(wallet_address) != 42 or not wallet_address.startswith("0x"):
+    wallet_address = normalize_wallet_address(req.walletAddress)
+    if not wallet_address:
         raise HTTPException(status_code=422, detail="Enter a valid wallet address.")
+    if is_treasury_wallet_address(wallet_address):
+        raise HTTPException(status_code=400, detail="The treasury wallet cannot be used as a user receiving wallet.")
 
-    existing = await db.users.find_one({"walletAddress": wallet_address})
-    if existing and existing.get("id") != user["id"]:
+    existing_by_address = await db.users.find_one({"$or": [{"walletAddress": wallet_address}, {"walletHistory.address": wallet_address}]}, {"_id": 0, "id": 1})
+    if existing_by_address and existing_by_address.get("id") != user["id"]:
         raise HTTPException(status_code=409, detail="This wallet address is already connected to another account.")
 
-    await db.users.update_one({"id": user["id"]}, {"$set": {"walletAddress": wallet_address}})
-    return {"status": "ok", "walletAddress": wallet_address}
+    history = list(user.get("walletHistory") or [])
+    seen = {item.get("address", "").lower() for item in history if item.get("address")}
+    if wallet_address not in seen:
+        history.append({"address": wallet_address, "connectedAt": iso(now_utc()), "lastUsedAt": iso(now_utc())})
+    else:
+        for item in history:
+            if item.get("address", "").lower() == wallet_address:
+                item["lastUsedAt"] = iso(now_utc())
+                break
+
+    await db.users.update_one({"id": user["id"]}, {"$set": {"walletAddress": wallet_address, "walletHistory": history}})
+    return {"status": "ok", "walletAddress": wallet_address, "walletHistory": history}
+
+
+@api_router.post("/wallet-address/select")
+async def select_wallet_address(req: UpdateWalletAddressRequest, user: dict = Depends(get_current_user)):
+    wallet_address = normalize_wallet_address(req.walletAddress)
+    if not wallet_address:
+        raise HTTPException(status_code=422, detail="Enter a valid wallet address.")
+    if is_treasury_wallet_address(wallet_address):
+        raise HTTPException(status_code=400, detail="The treasury wallet cannot be used as a user receiving wallet.")
+
+    history = list(user.get("walletHistory") or [])
+    matches = [item for item in history if normalize_wallet_address(item.get("address")) == wallet_address]
+    if not matches:
+        raise HTTPException(status_code=404, detail="This wallet is not in your connected wallet history.")
+
+    for item in history:
+        if normalize_wallet_address(item.get("address")) == wallet_address:
+            item["lastUsedAt"] = iso(now_utc())
+            break
+
+    await db.users.update_one({"id": user["id"]}, {"$set": {"walletAddress": wallet_address, "walletHistory": history}})
+    return {"status": "ok", "walletAddress": wallet_address, "walletHistory": history}
+
+
+@api_router.post("/wallet-address/disconnect")
+async def disconnect_wallet_address(req: Optional[UpdateWalletAddressRequest] = None, user: dict = Depends(get_current_user)):
+    address_to_remove = normalize_wallet_address((req.walletAddress if req else user.get("walletAddress")))
+    if not address_to_remove:
+        await db.users.update_one({"id": user["id"]}, {"$set": {"walletAddress": None, "walletHistory": []}})
+        return {"status": "ok", "walletAddress": None, "walletHistory": []}
+
+    history = [item for item in (user.get("walletHistory") or []) if normalize_wallet_address(item.get("address")) != address_to_remove]
+    active_wallet = user.get("walletAddress")
+    next_active = None
+    if history:
+        next_active = history[-1].get("address")
+    if active_wallet and normalize_wallet_address(active_wallet) == address_to_remove:
+        await db.users.update_one({"id": user["id"]}, {"$set": {"walletAddress": next_active, "walletHistory": history}})
+        return {"status": "ok", "walletAddress": next_active, "walletHistory": history}
+
+    await db.users.update_one({"id": user["id"]}, {"$set": {"walletAddress": user.get("walletAddress"), "walletHistory": history}})
+    return {"status": "ok", "walletAddress": user.get("walletAddress"), "walletHistory": history}
 
 
 @api_router.post("/claim-rewards")
@@ -756,6 +826,7 @@ async def login(req: LoginRequest, response: Response):
 async def me(user: dict = Depends(get_current_user)):
     referral_count = await db.referrals.count_documents({"referrerId": user["id"]})
     user["referralCount"] = referral_count
+    user["walletHistory"] = user.get("walletHistory") or []
     user["totalSpeakBalance"] = int(user.get("speakCoinBalance", 0)) + int(user.get("pendingSpeakBalance", 0))
     return user
 
